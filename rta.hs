@@ -13,7 +13,6 @@ data Communication = Communication {
 data TaskSpec = TaskSpec {
     tsPeriod :: Int,
     tsDeadline :: Int,
-    tsReleaseJitter :: Int,
     tsComm :: Communication
 } deriving (Show)
 
@@ -21,15 +20,14 @@ data Task = Task {
     tPriority :: Int,
     tComputation :: Int,
     tPeriod :: Int,
-    tDeadline :: Int,
-    tReleaseJitter :: Int
+    tDeadline :: Int
 } deriving (Show)
 
 instance Eq Task where
-    (Task p1 _ _ _ _) == (Task p2 _ _ _ _) = p1 == p2
+    (Task p1 _ _ _) == (Task p2 _ _ _) = p1 == p2
 
 instance Ord Task where
-    (Task p1 _ _ _ _) `compare` (Task p2 _ _ _ _) = p1 `compare` p2
+    (Task p1 _ _ _) `compare` (Task p2 _ _ _) = p1 `compare` p2
 
 ascendingPriority :: [Task] -> [Task]
 ascendingPriority = sortBy (comparing tPriority)
@@ -67,7 +65,7 @@ responseTimes ts = responseTimesR (tail tss) rts
     where
         tss = ascendingPriority ts
         highest = head tss
-        rts = Map.singleton highest $ responseTimeSingle Map.empty $ highest
+        rts = Map.singleton highest $ responseTimeSingle Map.empty highest
 
 main = do
-    print $ responseTimes [Task 1 1 10 10 5, Task 2 2 6 6 6, Task 3 2 7 7 7]
+    print $ responseTimes [Task 1 1 10 10, Task 2 2 6 6, Task 3 2 7 7]
