@@ -1,9 +1,10 @@
 import Debug.Trace
 
-import qualified Data.Map as Map
-
 import Data.List (sortBy)
+import qualified Data.Map as Map
+import Data.Maybe
 import Data.Ord (comparing)
+
 
 data Communication = Communication {
     destination :: Task,
@@ -18,10 +19,13 @@ data TaskSpec = TaskSpec {
 
 data Task = Task {
     tPriority :: Int,
-    tComputation :: Int,
-    tPeriod :: Int,
-    tDeadline :: Int
+    tComputation :: Float,
+    tPeriod :: Float,
+    tDeadline :: Float
 } deriving (Show)
+
+type ResponseTime = Maybe Float
+type ScaleFactor = Float
 
 instance Eq Task where
     (Task p1 _ _ _) == (Task p2 _ _ _) = p1 == p2
@@ -32,40 +36,45 @@ instance Ord Task where
 ascendingPriority :: [Task] -> [Task]
 ascendingPriority = sortBy (comparing tPriority)
 
-responseTimeSingleR :: Map.Map Task Int -> Task -> Int -> Int
-responseTimeSingleR rts t pr
-    | pr > tDeadline t = -1
-    | pr == r = r
-    | otherwise = responseTimeSingleR rts t r
+scale :: ScaleFactor -> Task -> Task
+scale sf t = t { tComputation = nComp }
+    where nComp = tComputation t * sf
+
+responseTimeSingleR :: Task -> Map.Map Task ResponseTime -> Float -> ResponseTime
+responseTimeSingleR t rts pr
+    | pr > tDeadline t = Nothing
+    | pr == r = Just r
+    | otherwise = responseTimeSingleR t rts r
     where
         hpts = Map.keys rts
-        singleInterference = \hpt -> (tComputation hpt) * (ceiling ((fromIntegral pr) / (fromIntegral . tPeriod) hpt))
+        singleInterference = \hpt -> (tComputation hpt) * ((fromIntegral . ceiling) (pr / tPeriod hpt))
         interference = sum $ map singleInterference hpts
         r = tComputation t + interference
 
-responseTimeSingle :: Map.Map Task Int -> Task -> Int
-responseTimeSingle rts t
-    | rts == Map.empty = c
-    | otherwise = responseTimeSingleR rts t c
+responseTimeSingle :: Task -> Map.Map Task ResponseTime -> ResponseTime
+responseTimeSingle t rts
+    | rts == Map.empty = Just c
+    | failed > 0 = Nothing
+    | otherwise = responseTimeSingleR t rts c
     where
+        failed = length $ filter isNothing $ Map.elems rts
         c = tComputation t
 
-responseTimesR :: [Task] -> Map.Map Task Int -> Map.Map Task Int
+responseTimesR :: [Task] -> Map.Map Task ResponseTime -> Map.Map Task ResponseTime
 responseTimesR [] rts = rts
 responseTimesR ts rts = responseTimesR remaining nrts
     where
         remaining = tail ts
         highest = head ts
-        nrts = Map.insert highest (responseTimeSingle rts highest) rts
+        nrts = Map.insert highest (responseTimeSingle highest rts) rts
 
-responseTimes :: [Task] -> Map.Map Task Int
-responseTimes [] = Map.empty
-responseTimes [t] = Map.singleton t (tComputation t)
-responseTimes ts = responseTimesR (tail tss) rts
+responseTimes :: [Task] -> ScaleFactor -> Map.Map Task ResponseTime
+responseTimes [] _  = Map.empty
+responseTimes ts sf = responseTimesR (tail tss) rts
     where
-        tss = ascendingPriority ts
+        tss = ascendingPriority $ map (scale sf) ts
         highest = head tss
-        rts = Map.singleton highest $ responseTimeSingle Map.empty highest
+        rts = Map.singleton highest $ responseTimeSingle highest Map.empty
 
 main = do
-    print $ responseTimes [Task 1 1 10 10, Task 2 2 6 6, Task 3 2 7 7]
+    print $ responseTimes [Task 1 2 10 10, Task 2 4 6 6, Task 3 6 7 7] 0.5
