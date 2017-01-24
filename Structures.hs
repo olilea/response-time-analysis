@@ -1,7 +1,7 @@
 module Structures
     (
-        Communication(cDestination, cSize),
-        TaskSpec(tsId, tsPeriod, tsDeadline),
+        Communication(..),
+        TaskSpec(..),
         TaskId,
         TaskPeriod,
         TaskDeadline,

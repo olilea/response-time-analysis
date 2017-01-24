@@ -9,22 +9,19 @@ import Data.Ord (comparing)
 import Structures
 
 data Task = Task {
-    tId :: TaskId,
+    tSpec :: TaskSpec,
     tPriority :: TaskPriority,
-    tComputation :: TaskComputation,
-    tPeriod :: TaskPeriod,
-    tDeadline :: TaskDeadline
+    tComputation :: TaskComputation
 } deriving (Show)
 
-convert :: TaskSpec -> TaskPriority -> TaskComputation -> Task
-convert  ts priority computation =
-    Task (tsId ts) priority computation (tsPeriod ts) (tsDeadline ts)
-
 instance Eq Task where
-    (Task id1 _ _ _ _) == (Task id2 _ _ _ _) = id1 == id2
+    (Task sp1 _ _) == (Task sp2 _ _) = tsId sp1 == tsId sp2
 
 instance Ord Task where
-    (Task id1 _ _ _ _) `compare` (Task id2 _ _ _ _) = id1 `compare` id2
+    (Task sp1 _ _) `compare` (Task sp2 _ _) = tsId sp1 `compare` tsId sp2
+
+convert :: TaskSpec -> TaskPriority -> TaskComputation -> Task
+convert  ts priority computation = Task ts priority computation
 
 ascendingPriority :: [Task] -> [Task]
 ascendingPriority = sortBy (comparing tPriority)
@@ -35,12 +32,12 @@ scale sf t = t { tComputation = nComp }
 
 responseTimeSingleR :: Task -> M.Map Task TaskResponseTime -> Float -> TaskResponseTime
 responseTimeSingleR t rts pr
-    | pr > tDeadline t = Nothing
+    | pr > (tsDeadline . tSpec) t = Nothing
     | pr == r = Just r
     | otherwise = responseTimeSingleR t rts r
     where
         hpts = M.keys rts
-        singleInterference = \hpt -> (tComputation hpt) * ((fromIntegral . ceiling) (pr / tPeriod hpt))
+        singleInterference = \hpt -> (tComputation hpt) * ((fromIntegral . ceiling) (pr / (tsPeriod . tSpec) hpt))
         interference = sum $ map singleInterference hpts
         r = tComputation t + interference
 
@@ -61,13 +58,21 @@ responseTimesR ts rts = responseTimesR remaining nrts
         highest = head ts
         nrts = M.insert highest (responseTimeSingle highest rts) rts
 
-responseTimes :: [Task] -> ScaleFactor -> M.Map Task TaskResponseTime
-responseTimes [] _  = M.empty
-responseTimes ts sf = responseTimesR (tail tss) rts
+responseTimes :: [Task] -> M.Map Task TaskResponseTime
+responseTimes []  = M.empty
+responseTimes ts = responseTimesR (tail tss) rts
     where
-        tss = ascendingPriority $ map (scale sf) ts
+        tss = ascendingPriority ts
         highest = head tss
         rts = M.singleton highest $ responseTimeSingle highest M.empty
 
+responseTimeAnalysis :: [(TaskSpec, TaskPriority, TaskComputation)] -> ScaleFactor -> M.Map TaskSpec TaskResponseTime
+responseTimeAnalysis taskSet sf = M.fromList $ map toSpec $ M.toList $ responseTimes ts
+    where
+        ts = map ((scale sf) . toTask) taskSet
+        toTask (spec, p, c) = Task spec p c
+        toSpec (Task (TaskSpec idee period deadline) _ _, rt) = (TaskSpec idee period deadline, rt)
+
 main = do
-    print $ responseTimes [Task 1 1 2 10 10, Task 2 2 4 6 6, Task 3 3 6 7 7] 0.5
+    let tasks = [((TaskSpec 1 10 10), 1, 2), ((TaskSpec 2 6 6), 2, 4), ((TaskSpec 3 7 7), 3, 6)]
+    print $ responseTimeAnalysis tasks 0.2
