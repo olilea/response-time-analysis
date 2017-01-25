@@ -1,16 +1,30 @@
 module Structures
     (
-        Communication(..),
-        TaskSpec(..),
+        Id,
         TaskId,
         TaskPeriod,
         TaskDeadline,
         TaskPriority,
         TaskComputation,
         TaskResponseTime,
-        ScaleFactor
+        ScaleFactor,
+        Communication(..),
+        TaskSpec(..),
     )
 where
+
+type Id = Int
+
+type TaskId = Id
+type TaskPeriod = Float
+type TaskDeadline = Float
+
+type TaskPriority = Int
+type TaskComputation = Float
+
+type TaskResponseTime = Maybe Float
+type ScaleFactor = Float
+
 
 data Communication = Communication {
     cDestination :: TaskId,
@@ -29,15 +43,3 @@ instance Eq TaskSpec where
 
 instance Ord TaskSpec where
     (TaskSpec id1 _ _ _) `compare` (TaskSpec id2 _ _ _) = id1 `compare` id2
-
-type CommunicationSize = Int
-
-type TaskId = Int
-type TaskPeriod = Float
-type TaskDeadline = Float
-
-type TaskPriority = Int
-type TaskComputation = Float
-
-type TaskResponseTime = Maybe Float
-type ScaleFactor = Float

@@ -1,3 +1,4 @@
 *.sublime-workspace
+.stack-work
 **/*.o
 **/*.hi

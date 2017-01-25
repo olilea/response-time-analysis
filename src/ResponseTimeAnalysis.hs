@@ -72,10 +72,3 @@ responseTimeAnalysis taskSet sf = M.fromList $ map toSpec $ M.toList $ responseT
         ts = map ((scale sf) . toTask) taskSet
         toTask (spec, p, c) = Task spec p c
         toSpec (Task (TaskSpec idee period deadline comm) _ _, rt) = (TaskSpec idee period deadline comm, rt)
-
-main :: IO ()
-main = do
-    let tasks = [((TaskSpec 1 10 10 (Communication 2 1)), 1, 2),
-                ((TaskSpec 2 6 6 (Communication 3 1)), 2, 4),
-                ((TaskSpec 3 7 7 (Communication 1 1)), 3, 6)]
-    print $ responseTimeAnalysis tasks 1.0
