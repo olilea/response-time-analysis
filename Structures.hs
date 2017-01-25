@@ -13,21 +13,22 @@ module Structures
 where
 
 data Communication = Communication {
-    cDestination :: TaskSpec,
+    cDestination :: TaskId,
     cSize :: Int
 } deriving (Show)
 
 data TaskSpec = TaskSpec {
     tsId :: TaskId,
     tsPeriod :: TaskPeriod,
-    tsDeadline :: TaskDeadline
+    tsDeadline :: TaskDeadline,
+    tsCommunication :: Communication
 } deriving (Show)
 
 instance Eq TaskSpec where
-    (TaskSpec id1 _ _) == (TaskSpec id2 _ _) = id1 == id2
+    (TaskSpec id1 _ _ _) == (TaskSpec id2 _ _ _) = id1 == id2
 
 instance Ord TaskSpec where
-    (TaskSpec id1 _ _) `compare` (TaskSpec id2 _ _) = id1 `compare` id2
+    (TaskSpec id1 _ _ _) `compare` (TaskSpec id2 _ _ _) = id1 `compare` id2
 
 type CommunicationSize = Int
 
