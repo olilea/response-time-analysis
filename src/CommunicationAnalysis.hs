@@ -1,39 +1,73 @@
 
-module CommunicationAnalysis () where
+module CommunicationAnalysis
+    (
+        communicationAnalysis,
+        routeXY
+    )
+where
 
+import ResponseTimeAnalysis
 import Structures
+import Utils
 
-import Control.Lens
+import qualified Data.Map as M
+import Data.Maybe
+import Data.List
 
-type Speed = Float
+type Lookup = (M.Map TaskId Task, M.Map CoreId Core)
 
-type CoreId = Id
-type CoreSpeed = Float
 
-data Core = Core {
-    cId :: CoreId,
-    cSpeed :: Float
-}
 
-type Network = [[Core]]
+core :: TaskId -> TaskMapping -> CoreId
+core t tm = fromMaybe (error "Task not in task mapping") $ M.lookup t tm
 
--- Zero indexed from the top-left
-type Location = (Int, Int)
-
-coreAt :: Location -> Network -> Maybe Core
-coreAt (r, c) n = case n ^? element r of
-    Just row -> row ^? element c
-    Nothing -> Nothing
-
-routeXY :: Location -> Location -> Network -> [Location]
-routeXY (ar, ac) (br, bc) n
-    | (ar, ac) == (br, bc) = []
-    | ac /= bc = case compare ac bc of
-        LT -> (ar, ac) : nextCol succ
-        GT -> (ar, ac) : nextCol pred
-    | ar /= br = case compare ar br of
-        LT -> (ar, ac) : nextRow succ
-        GT -> (ar, ac) : nextRow pred
+location :: TaskId -> Application -> Location
+location taskId (_, _, tm, cm) = fromMaybe (error "Core not in core mapping") $ M.lookup c cm
     where
-        nextCol dir = routeXY (ar, dir ac) (br, bc) n
-        nextRow dir = routeXY (dir ar, ac) (br, bc) n
+        c = core taskId tm
+
+directInterferenceSet :: Task -> M.Map Task TrafficFlow -> [Task]
+directInterferenceSet t tfs = M.keys . M.filter (not . null . intersect tFlow) $ hpts
+    where
+        tFlow = fromMaybe (error "Traffic flow not in map") $ M.lookup t tfs 
+        hpts = M.filterWithKey (\kt _ -> tPriority kt > tPriority t) tfs
+
+routeXY :: Location -> Location -> TrafficFlow
+routeXY (ar, ac) (br, bc)
+    | (ar, ac) == (br, bc) = []
+    | otherwise = cur : routeXY next (br, bc)
+    where
+        next = case compare ac bc of
+            LT -> nextCol succ
+            GT -> nextCol pred
+            EQ -> case compare ar br of
+                LT -> nextRow succ
+                GT -> nextRow pred
+        cur = ((ar, ac), next) :: Link
+        nextCol dir = (ar, dir ac)
+        nextRow dir = (dir ar, ac)
+
+route :: Task -> Application -> TrafficFlow
+route t a = routeXY sLoc dLoc
+    where
+        sLoc = lf . tId $ t
+        dLoc = lf . cDestination . tCommunication $ t
+        lf x = location x a
+
+tasksOnCore :: Core -> Application -> [Task]
+tasksOnCore c (cs, ts, tm, _) = map (toTask . fst) . filter isOnCore . M.toList $ tm
+    where
+        -- Cleanup
+        tIdLookup = M.fromList . map (\t -> (tId t, t)) $ ts
+        cIdLookup = M.fromList . map (\c -> (cId c, c)) $ cs
+        isOnCore (_, coreId) = coreId == cId c
+        toTask task = fromMaybe (error "Task not in task lookup") $ M.lookup task tIdLookup
+        toCore core = fromMaybe (error "Core not in core lookup") $ M.lookup core cIdLookup
+
+-- Should be returning EndToEndResponseTimes
+communicationAnalysis :: Platform -> Application -> [TaskResponseTimes]
+communicationAnalysis p@(fs, lb, sf) a@(cs, ts, tm, cm) = responseTimes
+    where
+        responseTimes = map (\c -> responseTimeAnalysis (tasksOnCore c a) c sf) cs
+        rta  = responseTimeAnalysis
+        tss = ascendingPriority ts

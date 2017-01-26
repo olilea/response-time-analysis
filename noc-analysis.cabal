@@ -3,8 +3,6 @@ version:             0.1.0.0
 synopsis:            Simple project template from stack
 description:         Please see README.md
 homepage:            https://github.com/githubuser/noc-analysis#readme
-license:             BSD3
-license-file:        LICENSE
 author:              Author name here
 maintainer:          example@example.com
 copyright:           2017 Author name here
@@ -17,6 +15,8 @@ executable noc-analysis
   hs-source-dirs:      src
   main-is:             Main.hs
   default-language:    Haskell2010
+  other-modules:       Structures
+                       , CommunicationAnalysis
+                       , ResponseTimeAnalysis
   build-depends:       base >= 4.7 && < 5
-                       , lens 
                        , containers
