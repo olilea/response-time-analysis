@@ -25,6 +25,7 @@ type ScaleFactor = Float
 
 type FlitSize = Int
 type LinkBandwidth = Int
+type ProcessingDelay = Float
 
 type Location = (Int, Int)
 -- Source and destination
@@ -35,7 +36,7 @@ type TrafficFlow = [Link]
 type CoreMapping = M.Map CoreId Location
 type TaskMapping = M.Map TaskId CoreId
 
-type Platform = (FlitSize, LinkBandwidth, ScaleFactor)
+type Platform = (FlitSize, LinkBandwidth, ProcessingDelay, ScaleFactor)
 type Application = ([Core], [Task], TaskMapping, CoreMapping)
 
 data Task = Task {

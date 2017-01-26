@@ -55,15 +55,14 @@ tasksOnCore c (cs, ts, tm, _) = map (toTask . fst) . filter isOnCore . M.toList 
     where
         -- Cleanup
         tIdLookup = M.fromList . map (\t -> (tId t, t)) $ ts
-        cIdLookup = M.fromList . map (\c -> (cId c, c)) $ cs
         isOnCore (_, coreId) = coreId == cId c
         toTask task = fromMaybe (error "Task not in task lookup") $ M.lookup task tIdLookup
-        toCore core = fromMaybe (error "Core not in core lookup") $ M.lookup core cIdLookup
 
 -- Should be returning EndToEndResponseTimes
 communicationAnalysis :: Platform -> Application -> TaskResponseTimes
-communicationAnalysis p@(fs, lb, sf) a@(cs, ts, tm, cm) = responseTimes
+communicationAnalysis p@(fs, lb, pd, sf) a@(cs, ts, tm, cm) = responseTimes
     where
         responseTimes = flattenMap . map (\c -> responseTimeAnalysis (tasksOnCore c a) c sf) $ cs
-        rta  = responseTimeAnalysis
+        trafficFlows = M.fromList . map (\t -> (tId t, route t a)) $ ts
+        -- basicLatencies = (M.fromList . map (\t -> (tId t, basicCommunicationLatency t p (trafficFlows))
         tss = ascendingPriority ts

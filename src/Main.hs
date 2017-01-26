@@ -18,6 +18,6 @@ main = do
     -- putStr $ (unlines . map show . M.toList) $ responseTimeAnalysis tasks c 1.0
     -- print $ routeXY (1, 1) (3, 3)
 
-    let p = (1, 1, 1.0)
+    let p = (1, 1, 1.0, 1.0)
     let a = (cs, ts, tm, cm)
     print $ communicationAnalysis p a
