@@ -14,10 +14,6 @@ import qualified Data.Map as M
 import Data.Maybe
 import Data.List
 
-type Lookup = (M.Map TaskId Task, M.Map CoreId Core)
-
-
-
 core :: TaskId -> TaskMapping -> CoreId
 core t tm = fromMaybe (error "Task not in task mapping") $ M.lookup t tm
 
@@ -65,9 +61,9 @@ tasksOnCore c (cs, ts, tm, _) = map (toTask . fst) . filter isOnCore . M.toList 
         toCore core = fromMaybe (error "Core not in core lookup") $ M.lookup core cIdLookup
 
 -- Should be returning EndToEndResponseTimes
-communicationAnalysis :: Platform -> Application -> [TaskResponseTimes]
+communicationAnalysis :: Platform -> Application -> TaskResponseTimes
 communicationAnalysis p@(fs, lb, sf) a@(cs, ts, tm, cm) = responseTimes
     where
-        responseTimes = map (\c -> responseTimeAnalysis (tasksOnCore c a) c sf) cs
+        responseTimes = flattenMap . map (\c -> responseTimeAnalysis (tasksOnCore c a) c sf) $ cs
         rta  = responseTimeAnalysis
         tss = ascendingPriority ts

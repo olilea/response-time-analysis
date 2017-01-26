@@ -23,7 +23,8 @@ responseTimeSingleR t rts pr
     | otherwise = responseTimeSingleR t rts r
     where
         hpts = M.keys rts
-        singleInterference hpt = (tComputation hpt) * ((fromIntegral . ceiling) (pr / (tPeriod hpt)))
+        singleInterference hpt = tComputation hpt *
+            fromIntegral (ceiling (pr / tPeriod hpt) :: Int)
         interference = sum . map singleInterference $ hpts
         r = tComputation t + interference
 
@@ -36,7 +37,7 @@ responseTimeSingle t rts
         -- Task of higher priority misses its deadline -> current task misses deadline
         failed = isJust . find isNothing . M.elems $ rts
         c = tComputation t
-        singleResponse = if tComputation t > tDeadline t then Nothing else (Just . tComputation) $ t
+        singleResponse = if tComputation t > tDeadline t then Nothing else (Just . tComputation) t
 
 responseTimesR :: [Task] -> TaskResponseTimes -> TaskResponseTimes
 responseTimesR [] rts = rts

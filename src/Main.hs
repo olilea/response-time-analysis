@@ -9,7 +9,7 @@ import qualified Data.Map as M
 main :: IO ()
 main = do
     -- let c = Core 1 1.0
-    let cs = [(Core 1 1.0), (Core 2 0.5)]
+    let cs = [(Core 1 1.0), (Core 2 1.0)]
     let ts = [(Task 1 10 10 1 2 (Communication 2 1)),
                 (Task 2 6 6 2 4 (Communication 3 1)),
                 (Task 3 7 7 3 6 (Communication 1 1))]
