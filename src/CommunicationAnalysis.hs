@@ -79,8 +79,15 @@ communicationAnalysis p@(_, _, _, sf) a@(cs, ts, tm, cm) = trafficFlows
         coreLookup = M.fromList . map (\c -> (cId c, c)) $ cs
         taskLookup = M.fromList . map (\t -> (tId t, t)) $ ts
         idLookup = (taskLookup, coreLookup)
-        responseTimes = flattenMap . map (\c -> responseTimeAnalysis (tasksOnCore c a taskLookup) c sf) $ cs
-        trafficFlows = lookupTasks taskLookup . M.fromList . map (\t -> (tId t, route t a)) $ ts
-        basicLatencies = map (\(t, tf) -> basicNetworkLatency t (length tf) p) . M.toList $ trafficFlows
+        responseTimes = flattenMap
+                      . map (\c -> responseTimeAnalysis (tasksOnCore c a taskLookup) c sf)
+                      $ cs
+        trafficFlows = lookupTasks taskLookup
+                     . M.fromList
+                     . map (\t -> (tId t, route t a))
+                     $ ts
+        basicLatencies = map (\(t, tf) -> basicNetworkLatency t (length tf) p)
+                       . M.toList 
+                       $ trafficFlows
         -- basicLatencies = (M.fromList . map (\t -> (tId t, basicCommunicationLatency t p (trafficFlows))
         tss = ascendingPriority ts
