@@ -14,12 +14,7 @@ import qualified Data.Map as M
 import Data.Maybe
 import Data.List
 
-type IdLookup = (M.Map TaskId Task, M.Map CoreId Core)
-
-lookupTasks :: M.Map TaskId Task -> M.Map TaskId v -> M.Map Task v
-lookupTasks idLookup m = M.fromList . map get $ M.toList m
-    where
-        get (tid, v1) = (fromMaybe (error "Task not in task lookup") $ M.lookup tid idLookup, v1)
+type IdLookup = (M.Map Id Task, M.Map Id Core)
 
 core :: TaskId -> TaskMapping -> CoreId
 core t tm = fromMaybe (error "Task not in task mapping") $ M.lookup t tm
@@ -73,8 +68,8 @@ basicNetworkLatency t hops (fs, lb, pd, sf) = (flits * flitBandwidth) + processi
         fi = fromIntegral
 
 -- Should be returning EndToEndResponseTimes
-communicationAnalysis :: Platform -> Application -> M.Map Task TrafficFlow
-communicationAnalysis p@(_, _, _, sf) a@(cs, ts, tm, cm) = trafficFlows
+communicationAnalysis :: Platform -> Application -> M.Map Task Float
+communicationAnalysis p@(_, _, _, sf) a@(cs, ts, tm, cm) = basicLatencies
     where
         coreLookup = M.fromList . map (\c -> (cId c, c)) $ cs
         taskLookup = M.fromList . map (\t -> (tId t, t)) $ ts
@@ -82,11 +77,12 @@ communicationAnalysis p@(_, _, _, sf) a@(cs, ts, tm, cm) = trafficFlows
         responseTimes = flattenMap
                       . map (\c -> responseTimeAnalysis (tasksOnCore c a taskLookup) c sf)
                       $ cs
-        trafficFlows = lookupTasks taskLookup
+        trafficFlows = expandId taskLookup
                      . M.fromList
                      . map (\t -> (tId t, route t a))
                      $ ts
-        basicLatencies = map (\(t, tf) -> basicNetworkLatency t (length tf) p)
+        basicLatencies = M.fromList
+                       . map (\(t, tf) -> (t, basicNetworkLatency t (length tf) p))
                        . M.toList 
                        $ trafficFlows
         -- basicLatencies = (M.fromList . map (\t -> (tId t, basicCommunicationLatency t p (trafficFlows))
