@@ -13,6 +13,7 @@ import Utils
 import qualified Data.Map as M
 import Data.Maybe
 import Data.List
+import qualified Data.Set as S
 
 type IdLookup = (M.Map Id Task, M.Map Id Core)
 
@@ -24,11 +25,22 @@ location taskId (_, _, tm, cm) = fromMaybe (error "Core not in core mapping") $ 
     where
         c = core taskId tm
 
-directInterferenceSet :: Task -> M.Map Task TrafficFlow -> [Task]
-directInterferenceSet t tfs = M.keys . M.filter (not . null . intersect tFlow) $ hpts
+directlyInterferes :: Task -> TrafficFlow -> Task -> TrafficFlow -> Bool
+directlyInterferes t tf target targetTf = hp && intersecting
     where
-        tFlow = fromMaybe (error "Traffic flow not in map") $ M.lookup t tfs 
-        hpts = M.filterWithKey (\kt _ -> tPriority kt > tPriority t) tfs
+        hp = tPriority t > tPriority target
+        intersecting = not . null . intersect tf $ targetTf
+
+directInterferenceSet :: Task -> M.Map Task TrafficFlow -> [Task]
+directInterferenceSet t tfs = interfering
+    where
+        interfering = M.keys . M.filterWithKey (\t2 tf2 -> directlyInterferes t (tFlow t) t2 (tFlow t2)) $ tfs
+        tFlow task = fromMaybe (error "Traffic flow not in map") . M.lookup task $ tfs 
+
+indirectInterferenceSet :: Task -> M.Map Task [Task] -> [Task]
+indirectInterferenceSet t dis = S.toList . S.fromList . concat . M.elems $ hpts
+    where
+        hpts = M.filterWithKey (\t2 di -> tPriority t > tPriority t2) dis
 
 routeXY :: Location -> Location -> TrafficFlow
 routeXY (ar, ac) (br, bc)
