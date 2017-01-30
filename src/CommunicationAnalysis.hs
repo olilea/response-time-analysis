@@ -15,7 +15,13 @@ import Data.Maybe
 import Data.List
 import qualified Data.Set as S
 
-type IdLookup = (M.Map Id Task, M.Map Id Core)
+type Intermediates = (
+    EndToEndResponseTimes,
+    TaskResponseTimes,
+    M.Map Task TrafficFlow,
+    M.Map Task [Task],
+    M.Map Task Float
+    )
 
 core :: TaskId -> TaskMapping -> CoreId
 core t tm = fromMaybe (error "Task not in task mapping") $ M.lookup t tm
@@ -28,19 +34,21 @@ location taskId (_, _, tm, cm) = fromMaybe (error "Core not in core mapping") $ 
 directlyInterferes :: Task -> TrafficFlow -> Task -> TrafficFlow -> Bool
 directlyInterferes t tf target targetTf = hp && intersecting
     where
-        hp = tPriority t > tPriority target
+        hp = tPriority t < tPriority target
         intersecting = not . null . intersect tf $ targetTf
 
 directInterferenceSet :: Task -> M.Map Task TrafficFlow -> [Task]
 directInterferenceSet t tfs = interfering
     where
-        interfering = M.keys . M.filterWithKey (\t2 tf2 -> directlyInterferes t (tFlow t) t2 (tFlow t2)) $ tfs
+        interfering = M.keys . M.filterWithKey (\t2 _ -> directlyInterferes t (tFlow t) t2 (tFlow t2)) $ tfs
         tFlow task = fromMaybe (error "Traffic flow not in map") . M.lookup task $ tfs 
 
-indirectInterferenceSet :: Task -> M.Map Task [Task] -> [Task]
-indirectInterferenceSet t dis = S.toList . S.fromList . concat . M.elems $ hpts
-    where
-        hpts = M.filterWithKey (\t2 di -> tPriority t > tPriority t2) dis
+-- indirectInterferenceSet :: Task -> M.Map Task [Task] -> [Task]
+-- indirectInterferenceSet t dis = distinct . concat . M.elems  $ hpts
+--     where
+--         di = fromMaybe (error "Task not in map") . M.lookup t dis
+--         hpts = M.filterWithKey (\t2 di2 -> tPriority t > tPriority t2)
+--         distinct = S.toList . S.fromList
 
 routeXY :: Location -> Location -> TrafficFlow
 routeXY (ar, ac) (br, bc)
@@ -79,23 +87,52 @@ basicNetworkLatency t hops (fs, lb, pd, sf) = (flits * flitBandwidth) + processi
         processingDelay = fi hops * (pd / sf)
         fi = fromIntegral
 
--- Should be returning EndToEndResponseTimes
-communicationAnalysis :: Platform -> Application -> M.Map Task Float
-communicationAnalysis p@(_, _, _, sf) a@(cs, ts, tm, cm) = basicLatencies
+analysis :: Intermediates -> Task -> EndToEndResponseTime
+analysis (endToEnds, rts, tfs, dis, bls) t = Nothing
     where
-        coreLookup = M.fromList . map (\c -> (cId c, c)) $ cs
-        taskLookup = M.fromList . map (\t -> (tId t, t)) $ ts
-        idLookup = (taskLookup, coreLookup)
-        responseTimes = flattenMap
-                      . map (\c -> responseTimeAnalysis (tasksOnCore c a taskLookup) c sf)
-                      $ cs
-        trafficFlows = expandId taskLookup
-                     . M.fromList
-                     . map (\t -> (tId t, route t a))
-                     $ ts
-        basicLatencies = M.fromList
-                       . map (\(t, tf) -> (t, basicNetworkLatency t (length tf) p))
-                       . M.toList 
-                       $ trafficFlows
-        -- basicLatencies = (M.fromList . map (\t -> (tId t, basicCommunicationLatency t p (trafficFlows))
-        tss = ascendingPriority ts
+        taskRt = fetch rts t
+        taskTf = fetch tfs t
+        taskDi = fetch dis t
+        taskBl = fetch bls t
+        notDirect task = notElem task taskDi
+        taskIndirect = M.keys
+                     -- Only keep tasks that contain indirect interference tasks with t
+                     . M.filter (not . null)
+                     -- Remove tasks that directly interfere with t
+                     . M.map (\is -> filter notDirect is)
+                     -- Interferences for all tasks that interefere with T
+                     . M.filterWithKey (\task _ -> elem task taskDi)
+                     $ dis
+        
+communicationAnalysisR :: [Task] -> Intermediates -> EndToEndResponseTimes
+communicationAnalysisR [] (e2es, _, _, _, _) = e2es
+communicationAnalysisR (cur:remain) i = communicationAnalysisR remain nextI
+    where
+        (currentTimes, responseTimes, trafficFlows, dInterferences, latencies) = i
+        endToEndTime = analysis i cur
+        newTimes = M.insert cur endToEndTime currentTimes
+        nextI = (newTimes, responseTimes, trafficFlows, dInterferences, latencies)
+
+-- Should be returning EndToEndResponseTimes
+communicationAnalysis :: Platform -> Application -> EndToEndResponseTimes
+communicationAnalysis p@(_, _, _, sf) a@(cs, ts, tm, cm) =
+    communicationAnalysisR tss (M.empty, responseTimes, trafficFlows, directInterference, basicLatencies)
+        where
+            coreLookup = M.fromList . map (\c -> (cId c, c)) $ cs
+            taskLookup = M.fromList . map (\t -> (tId t, t)) $ ts
+            idLookup = (taskLookup, coreLookup)
+            responseTimes = flattenMap
+                          . map (\c -> responseTimeAnalysis (tasksOnCore c a taskLookup) c sf)
+                          $ cs
+            trafficFlows = expandId taskLookup
+                         . M.fromList
+                         . map (\t -> (tId t, route t a))
+                         $ ts
+            directInterference = M.fromList
+                         . map (\t -> (t, directInterferenceSet t trafficFlows))
+                         $ ts
+            basicLatencies = M.fromList
+                         . map (\(t, tf) -> (t, basicNetworkLatency t (length tf) p))
+                         . M.toList 
+                         $ trafficFlows
+            tss = ascendingPriority ts
