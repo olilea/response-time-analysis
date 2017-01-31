@@ -14,6 +14,10 @@ extra-source-files:  README.md
 library
   hs-source-dirs:      src
   exposed-modules:     Analysis
+  other-modules:       Internal.CommunicationAnalysis
+                       , Internal.ResponseTimeAnalysis
+                       , Internal.Structures
+                       , Internal.Utils
   default-language:    Haskell2010
   build-depends:       base >= 4.7 && < 5
                        , containers

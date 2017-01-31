@@ -8,8 +8,7 @@ where
 
 import Debug.Trace
 
-import Internal.ResponseTimeAnalysis
-import Structures
+import Internal.Structures
 import Internal.Utils
 
 import qualified Data.Map as M
@@ -101,7 +100,7 @@ analysisR i@(endToEnds, rts, _, dis, bls) indirectTasks t previousTime
             currentTime = debugOut $ fetch bls t + sum (map interference taskDi)
 
 analysis :: Intermediates -> Task -> CResponseTime
-analysis i@(endToEnds, rts, _, dis, _) t
+analysis i@(_, rts, _, dis, _) t
     | isNothing (fetch rts t) = Nothing
     | otherwise = analysisR i indirectTasks t 0.0
     where
@@ -127,15 +126,10 @@ communicationAnalysisR (cur:remain) i = communicationAnalysisR remain nextI
 
 -- Should be returning EndToEndResponseTimes
 communicationAnalysis :: Platform -> Application -> M.Map Task TResponseTime -> M.Map Task CResponseTime
-communicationAnalysis p@(_, _, _, sf) a@(cs, ts, tm, cm) responseTimes =
+communicationAnalysis p a@(_, ts, _, _) responseTimes =
     communicationAnalysisR tss (M.empty, responseTimes, trafficFlows, directInterference, basicLatencies)
         where
-            coreLookup = M.fromList . map (\c -> (cId c, c)) $ cs
             taskLookup = M.fromList . map (\t -> (tId t, t)) $ ts
-            idLookup = (taskLookup, coreLookup)
-            responseTimes = flattenMap
-                          . map (\c -> responseTimeAnalysis (tasksOnCore c a taskLookup) c sf)
-                          $ cs
             trafficFlows = expandId taskLookup
                          . M.fromList
                          . map (\t -> (tId t, route t a))

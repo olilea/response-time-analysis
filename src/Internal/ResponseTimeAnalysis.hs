@@ -9,7 +9,7 @@ import Data.List (find)
 import qualified Data.Map as M
 import Data.Maybe
 
-import Structures
+import Internal.Structures
 import Internal.Utils
 
 type ResponseMap = M.Map Task ResponseTime

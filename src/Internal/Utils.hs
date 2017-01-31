@@ -16,7 +16,7 @@ import Data.Ord (comparing)
 
 import Debug.Trace
 
-import Structures
+import Internal.Structures
 
 debugOut :: (Show a) => a -> a
 debugOut a = traceShow a a
@@ -33,7 +33,7 @@ fetch m k = fromJust . M.lookup k $ m
 expandId :: (Unique a) => M.Map Id a -> M.Map Id v -> M.Map a v
 expandId idLookup = M.mapKeys fromId
     where
-        fromId x = fromMaybe (error "Id not in lookup") . M.lookup x $ idLookup
+        fromId x = fromJust . M.lookup x $ idLookup
 
 tasksOnCore :: Core -> Application -> M.Map TaskId Task -> [Task]
 tasksOnCore c (_, _, tm, _) taskLookup = map (toTask . fst) . filter isOnCore . M.toList $ tm
