@@ -1,5 +1,4 @@
 module Structures
-    (module Structures)
 where
 
 import qualified Data.Map as M
@@ -15,10 +14,9 @@ type TaskDeadline = Float
 type TaskPriority = Int
 type TaskComputation = Float
 
-type TaskResponseTime = Maybe Float
-type TaskResponseTimes = M.Map Task TaskResponseTime
-type EndToEndResponseTime = Maybe Float
-type EndToEndResponseTimes = M.Map Task EndToEndResponseTime
+type ResponseTime = Maybe Float
+
+type BasicLatency = Float
 
 type ScaleFactor = Float
 

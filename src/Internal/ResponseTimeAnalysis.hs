@@ -1,5 +1,5 @@
 
-module ResponseTimeAnalysis
+module Internal.ResponseTimeAnalysis
     (
         responseTimeAnalysis
     )
@@ -10,13 +10,15 @@ import qualified Data.Map as M
 import Data.Maybe
 
 import Structures
-import Utils
+import Internal.Utils
+
+type ResponseMap = M.Map Task ResponseTime
 
 scale :: ScaleFactor -> Task -> Task
 scale sf t = t { tComputation = nComp }
     where nComp = tComputation t * sf
 
-responseTimeSingleR :: Task -> TaskResponseTimes -> Float -> TaskResponseTime
+responseTimeSingleR :: Task -> ResponseMap -> Float -> ResponseTime
 responseTimeSingleR t rts pr
     | pr > tDeadline t = Nothing
     | pr == r = Just r
@@ -28,7 +30,7 @@ responseTimeSingleR t rts pr
         interference = sum . map singleInterference $ hpts
         r = tComputation t + interference
 
-responseTimeSingle :: Task -> TaskResponseTimes -> TaskResponseTime
+responseTimeSingle :: Task -> ResponseMap -> ResponseTime
 responseTimeSingle t rts
     | rts == M.empty = singleResponse
     | failed = Nothing
@@ -39,19 +41,19 @@ responseTimeSingle t rts
         c = tComputation t
         singleResponse = if tComputation t > tDeadline t then Nothing else (Just . tComputation) t
 
-responseTimesR :: [Task] -> TaskResponseTimes -> TaskResponseTimes
+responseTimesR :: [Task] -> ResponseMap -> ResponseMap
 responseTimesR [] rts = rts
 responseTimesR ts rts = responseTimesR remaining nrts
     where
         (highest:remaining) = ts
         nrts = M.insert highest (responseTimeSingle highest rts) rts
 
-responseTimes :: [Task] -> TaskResponseTimes
+responseTimes :: [Task] -> M.Map Task ResponseTime
 responseTimes []  = M.empty
 responseTimes ts = responseTimesR remaining rts
     where
         (highest:remaining) = ascendingPriority ts
         rts = M.singleton highest $ responseTimeSingle highest M.empty
 
-responseTimeAnalysis :: [Task] -> Core -> ScaleFactor -> TaskResponseTimes
+responseTimeAnalysis :: [Task] -> Core -> ScaleFactor -> ResponseMap
 responseTimeAnalysis ts c sf = responseTimes . map (scale sf . scale (1.0 / cSpeed c)) $ ts

@@ -1,4 +1,4 @@
-module Utils
+module Internal.Utils
     (
         debugOut,
         ascendingPriority,
@@ -36,7 +36,7 @@ expandId idLookup = M.mapKeys fromId
         fromId x = fromMaybe (error "Id not in lookup") . M.lookup x $ idLookup
 
 tasksOnCore :: Core -> Application -> M.Map TaskId Task -> [Task]
-tasksOnCore c (_, ts, tm, _) taskLookup = map (toTask . fst) . filter isOnCore . M.toList $ tm
+tasksOnCore c (_, _, tm, _) taskLookup = map (toTask . fst) . filter isOnCore . M.toList $ tm
     where
         isOnCore (_, coreId) = coreId == cId c
         toTask task = fromJust $ M.lookup task taskLookup

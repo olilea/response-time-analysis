@@ -1,5 +1,5 @@
 
-module CommunicationAnalysis
+module Internal.CommunicationAnalysis
     (
         communicationAnalysis,
         routeXY
@@ -8,21 +8,25 @@ where
 
 import Debug.Trace
 
-import ResponseTimeAnalysis
+import Internal.ResponseTimeAnalysis
 import Structures
-import Utils
+import Internal.Utils
 
 import qualified Data.Map as M
 import Data.Maybe
 import Data.List
 import qualified Data.Set as S
 
+-- Distinguish between communication and computation response times
+type CResponseTime = ResponseTime
+type TResponseTime = ResponseTime
+
 type Intermediates = (
-    EndToEndResponseTimes,
-    TaskResponseTimes,
+    M.Map Task CResponseTime,
+    M.Map Task TResponseTime,
     M.Map Task TrafficFlow,
     M.Map Task [Task],
-    M.Map Task Float
+    M.Map Task BasicLatency
     )
 
 core :: TaskId -> TaskMapping -> CoreId
@@ -44,13 +48,6 @@ directInterferenceSet t tfs = interfering
     where
         interfering = M.keys . M.filterWithKey (\t2 _ -> directlyInterferes t (tFlow t) t2 (tFlow t2)) $ tfs
         tFlow task = fromJust . M.lookup task $ tfs 
-
--- indirectInterferenceSet :: Task -> M.Map Task [Task] -> [Task]
--- indirectInterferenceSet t dis = distinct . concat . M.elems  $ hpts
---     where
---         di = fromMaybe (error "Task not in map") . M.lookup t dis
---         hpts = M.filterWithKey (\t2 di2 -> tPriority t > tPriority t2)
---         distinct = S.toList . S.fromList
 
 routeXY :: Location -> Location -> TrafficFlow
 routeXY (ar, ac) (br, bc)
@@ -85,7 +82,7 @@ basicNetworkLatency t hops (fs, lb, pd, sf)
         fi = fromIntegral
         result = (flits * flitBandwidth) + processingDelay
 
-analysisR :: Intermediates -> S.Set Task -> Task -> Float -> EndToEndResponseTime
+analysisR :: Intermediates -> S.Set Task -> Task -> Float -> CResponseTime
 analysisR i@(endToEnds, rts, _, dis, bls) indirectTasks t previousTime
     | previousTime > tDeadline t = Nothing
     -- If any tasks that directly interfere with t have no response time
@@ -103,7 +100,7 @@ analysisR i@(endToEnds, rts, _, dis, bls) indirectTasks t previousTime
                                 * fetch bls task
             currentTime = debugOut $ fetch bls t + sum (map interference taskDi)
 
-analysis :: Intermediates -> Task -> EndToEndResponseTime
+analysis :: Intermediates -> Task -> CResponseTime
 analysis i@(endToEnds, rts, _, dis, _) t
     | isNothing (fetch rts t) = Nothing
     | otherwise = analysisR i indirectTasks t 0.0
@@ -119,7 +116,7 @@ analysis i@(endToEnds, rts, _, dis, _) t
                      . M.filterWithKey (\task _ -> elem task taskDi)
                      $ dis
         
-communicationAnalysisR :: [Task] -> Intermediates -> EndToEndResponseTimes
+communicationAnalysisR :: [Task] -> Intermediates -> M.Map Task CResponseTime
 communicationAnalysisR [] (e2es, _, _, _, _) = e2es
 communicationAnalysisR (cur:remain) i = communicationAnalysisR remain nextI
     where
@@ -129,7 +126,7 @@ communicationAnalysisR (cur:remain) i = communicationAnalysisR remain nextI
         nextI = (newTimes, responseTimes, trafficFlows, dInterferences, latencies)
 
 -- Should be returning EndToEndResponseTimes
-communicationAnalysis :: Platform -> Application -> TaskResponseTimes -> EndToEndResponseTimes
+communicationAnalysis :: Platform -> Application -> M.Map Task TResponseTime -> M.Map Task CResponseTime
 communicationAnalysis p@(_, _, _, sf) a@(cs, ts, tm, cm) responseTimes =
     communicationAnalysisR tss (M.empty, responseTimes, trafficFlows, directInterference, basicLatencies)
         where
