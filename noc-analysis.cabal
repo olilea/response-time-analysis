@@ -13,7 +13,7 @@ extra-source-files:  README.md
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Analysis
+  exposed-modules:     Analysis, Internal
   other-modules:       Internal.CommunicationAnalysis
                        , Internal.ResponseTimeAnalysis
                        , Internal.Structures
@@ -29,6 +29,7 @@ test-suite tests
   main-is:             Test.hs
   build-depends:
       base >= 4 && < 5
+    , containers  
     , tasty >= 0.7
     , tasty-hunit
     , noc-analysis

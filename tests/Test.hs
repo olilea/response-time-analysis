@@ -5,11 +5,13 @@ import Test.Tasty.HUnit
 import Data.List
 import Data.Ord
 
+import qualified ResponseTimeTests as RTT
+
 main :: IO ()
 main = defaultMain tests
 
 tests :: TestTree
-tests = testGroup "Tests" [unitTests]
+tests = testGroup "Tests" [RTT.tests, unitTests]
 
 unitTests = testGroup "Unit tests"
     [ testCase "List comparison (different length)" $

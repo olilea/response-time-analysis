@@ -1,8 +1,5 @@
 
 module Internal.ResponseTimeAnalysis
-    (
-        responseTimeAnalysis
-    )
 where
 
 import Data.List (find)
