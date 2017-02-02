@@ -70,16 +70,17 @@ route t a = routeXY sLoc dLoc
         dLoc = lf . cDestination . tCommunication $ t
         lf x = location x a
 
-basicNetworkLatency :: Task -> Int -> Platform -> Float
-basicNetworkLatency t hops (fs, lb, pd, sf)
+basicNetworkLatency :: Platform -> Task -> Int -> Float
+basicNetworkLatency (fs, ld, rd) t hops
     | hops == 0 = 0
-    | otherwise = traceShow result result
-    where
-        flits = fi . ceiling $ ((fi . cSize . tCommunication) t /  fi fs)
-        flitBandwidth = fi fs / fi lb
-        processingDelay = fi hops * (pd / sf)
-        fi = fromIntegral
-        result = (flits * flitBandwidth) + processingDelay
+    | otherwise = linkDelays + routerDelays + otherFlitLinkDelays
+        where
+            links = fromIntegral hops
+            routers = fromIntegral hops - 1
+            linkDelays = links * ld
+            routerDelays = routers * rd
+            flits = fromIntegral . ceiling $ (fromIntegral . cSize . tCommunication) t / fs
+            otherFlitLinkDelays = flits * ld
 
 analysisR :: Intermediates -> S.Set Task -> Task -> Float -> CResponseTime
 analysisR i@(endToEnds, rts, _, dis, bls) indirectTasks t previousTime
@@ -124,11 +125,19 @@ communicationAnalysisR (cur:remain) i = communicationAnalysisR remain nextI
         newTimes = M.insert cur endToEndTime currentTimes
         nextI = (newTimes, responseTimes, trafficFlows, dInterferences, latencies)
 
+scalePlatform :: Platform -> ScaleFactor -> Platform
+scalePlatform p@(fs, ld, rd) sf = (fs, ld * sf, rd * sf)
+
 -- Should be returning EndToEndResponseTimes
-communicationAnalysis :: Platform -> Application -> M.Map Task TResponseTime -> M.Map Task CResponseTime
-communicationAnalysis p a@(_, ts, _, _) responseTimes =
+communicationAnalysis :: Platform 
+                      -> ScaleFactor
+                      -> Application 
+                      -> M.Map Task TResponseTime 
+                      -> M.Map Task CResponseTime
+communicationAnalysis p sf a@(_, ts, _, _) responseTimes =
     communicationAnalysisR tss (M.empty, responseTimes, trafficFlows, directInterference, basicLatencies)
         where
+            scaledPlatform = scalePlatform p sf
             taskLookup = M.fromList . map (\t -> (tId t, t)) $ ts
             trafficFlows = expandId taskLookup
                          . M.fromList
@@ -138,7 +147,7 @@ communicationAnalysis p a@(_, ts, _, _) responseTimes =
                          . map (\t -> (t, directInterferenceSet t trafficFlows))
                          $ ts
             basicLatencies = M.fromList
-                         . map (\(t, tf) -> (t, basicNetworkLatency t (length tf) p))
+                         . map (\(t, tf) -> (t, basicNetworkLatency scaledPlatform t (length tf)))
                          . M.toList 
                          $ trafficFlows
             tss = ascendingPriority ts
