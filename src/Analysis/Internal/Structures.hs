@@ -1,4 +1,4 @@
-module Internal.Structures
+module Analysis.Internal.Structures
 where
 
 import qualified Data.Map as M

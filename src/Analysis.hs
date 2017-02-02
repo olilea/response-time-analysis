@@ -1,14 +1,14 @@
 
 module Analysis 
     ( module Analysis
-    , module Internal.Structures
+    , module Analysis.Internal.Structures
     )
     where
 
-import Internal.CommunicationAnalysis
-import Internal.ResponseTimeAnalysis
-import Internal.Structures
-import Internal.Utils
+import Analysis.Internal.CommunicationAnalysis
+import Analysis.Internal.ResponseTimeAnalysis
+import Analysis.Internal.Structures
+import Analysis.Internal.Utils
 
 import qualified Data.Map as M
 import Data.Maybe

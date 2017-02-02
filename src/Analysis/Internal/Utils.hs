@@ -1,4 +1,4 @@
-module Internal.Utils
+module Analysis.Internal.Utils
     (
         debugOut,
         ascendingPriority,
@@ -16,7 +16,7 @@ import Data.Ord (comparing)
 
 import Debug.Trace
 
-import Internal.Structures
+import Analysis.Internal.Structures
 
 debugOut :: (Show a) => a -> a
 debugOut a = traceShow a a

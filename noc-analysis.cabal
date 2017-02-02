@@ -13,11 +13,11 @@ extra-source-files:  README.md
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Analysis, Internal
-  other-modules:       Internal.CommunicationAnalysis
-                       , Internal.ResponseTimeAnalysis
-                       , Internal.Structures
-                       , Internal.Utils
+  exposed-modules:     Analysis, Analysis.Internal
+  other-modules:       Analysis.Internal.CommunicationAnalysis
+                       , Analysis.Internal.ResponseTimeAnalysis
+                       , Analysis.Internal.Structures
+                       , Analysis.Internal.Utils
   default-language:    Haskell2010
   build-depends:       base >= 4.7 && < 5
                        , containers
@@ -28,6 +28,7 @@ test-suite tests
   hs-source-dirs:      tests
   main-is:             Test.hs
   other-modules:       ResponseTimeTests
+                       , CommunicationTests
   build-depends:
       base >= 4 && < 5
     , containers  

@@ -9,7 +9,7 @@ import Data.Maybe
 import Test.Tasty
 import Test.Tasty.HUnit
 
-import Internal
+import Analysis.Internal
 
 defaultComm = Communication 1 1
 defaultScale = 1.0

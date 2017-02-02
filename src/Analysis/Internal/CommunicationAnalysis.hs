@@ -1,5 +1,5 @@
 
-module Internal.CommunicationAnalysis
+module Analysis.Internal.CommunicationAnalysis
     (
         communicationAnalysis,
         routeXY
@@ -8,8 +8,8 @@ where
 
 import Debug.Trace
 
-import Internal.Structures
-import Internal.Utils
+import Analysis.Internal.Structures
+import Analysis.Internal.Utils
 
 import qualified Data.Map as M
 import Data.Maybe

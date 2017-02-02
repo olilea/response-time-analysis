@@ -1,13 +1,13 @@
 
-module Internal.ResponseTimeAnalysis
+module Analysis.Internal.ResponseTimeAnalysis
 where
 
 import Data.List (find)
 import qualified Data.Map as M
 import Data.Maybe
 
-import Internal.Structures
-import Internal.Utils
+import Analysis.Internal.Structures
+import Analysis.Internal.Utils
 
 type ResponseMap = M.Map Task ResponseTime
 
