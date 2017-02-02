@@ -21,10 +21,9 @@ responseTimeSingleR t rts pr
     | pr == r = Just r
     | otherwise = responseTimeSingleR t rts r
     where
-        hpts = M.keys rts
         singleInterference hpt = tComputation hpt *
             fromIntegral (ceiling (pr / tPeriod hpt) :: Int)
-        interference = sum . map singleInterference $ hpts
+        interference = sum . map singleInterference . M.keys $ rts
         r = tComputation t + interference
 
 responseTimeSingle :: Task -> ResponseMap -> ResponseTime

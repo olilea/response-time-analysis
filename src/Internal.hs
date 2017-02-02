@@ -1,13 +1,7 @@
 
-module Internal 
-    ( module Internal
-    , module Internal.CommunicationAnalysis
-    , module Internal.ResponseTimeAnalysis
-    , module Internal.Structures
-    , module Internal.Utils
-    ) where
+module Internal (module X) where
 
-import Internal.CommunicationAnalysis
-import Internal.ResponseTimeAnalysis
-import Internal.Structures
-import Internal.Utils
+import Internal.CommunicationAnalysis as X
+import Internal.ResponseTimeAnalysis as X
+import Internal.Structures as X
+import Internal.Utils as X
