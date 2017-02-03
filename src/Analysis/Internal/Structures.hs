@@ -24,18 +24,21 @@ type FlitSize = Float
 type LinkDelay = Float
 type RoutingDelay = Float
 
-
-type Location = (Int, Int)
+data Location = Location Int Int
+    deriving (Eq, Show)
 -- Source and destination
-type Link = (Location, Location)
+data Link = Link Location Location
+    deriving (Eq, Show)
 -- Zero indexed from the top-left
 type TrafficFlow = [Link]
 
 type CoreMapping = M.Map CoreId Location
 type TaskMapping = M.Map TaskId CoreId
 
-type Platform = (FlitSize, LinkDelay, RoutingDelay)
-type Application = ([Core], [Task], TaskMapping, CoreMapping)
+data Platform = Platform FlitSize LinkDelay RoutingDelay
+    deriving (Eq, Show)
+data Application = Application [Core] [Task] TaskMapping CoreMapping
+    deriving (Eq, Show)
 
 class (Ord a) => Unique a where
     idee :: a -> Id
@@ -66,7 +69,7 @@ instance Ord Task where
 data Core = Core {
     cId :: Id,
     cSpeed :: Float
-}
+} deriving (Show)
 
 instance Unique Core where
     idee = cId

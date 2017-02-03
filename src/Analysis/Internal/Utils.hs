@@ -36,7 +36,7 @@ expandId idLookup = M.mapKeys fromId
         fromId x = fromJust . M.lookup x $ idLookup
 
 tasksOnCore :: Core -> Application -> M.Map TaskId Task -> [Task]
-tasksOnCore c (_, _, tm, _) taskLookup = map (toTask . fst) . filter isOnCore . M.toList $ tm
+tasksOnCore c (Application _ _ tm _) taskLookup = map (toTask . fst) . filter isOnCore . M.toList $ tm
     where
         isOnCore (_, coreId) = coreId == cId c
         toTask task = fromJust $ M.lookup task taskLookup

@@ -6,8 +6,6 @@ module Analysis.Internal.CommunicationAnalysis
     )
 where
 
-import Debug.Trace
-
 import Analysis.Internal.Structures
 import Analysis.Internal.Utils
 
@@ -32,7 +30,7 @@ core :: TaskId -> TaskMapping -> CoreId
 core t tm = fromJust $ M.lookup t tm
 
 location :: TaskId -> Application -> Location
-location taskId (_, _, tm, cm) = fromJust $ M.lookup c cm
+location taskId (Application _ _ tm cm) = fromJust $ M.lookup c cm
     where
         c = core taskId tm
 
@@ -49,9 +47,9 @@ directInterferenceSet t tfs = interfering
         tFlow task = fromJust . M.lookup task $ tfs 
 
 routeXY :: Location -> Location -> TrafficFlow
-routeXY (ar, ac) (br, bc)
+routeXY l1@(Location ar ac) l2@(Location br bc)
     | (ar, ac) == (br, bc) = []
-    | otherwise = cur : routeXY next (br, bc)
+    | otherwise = cur : routeXY next l2
     where
         next = case compare ac bc of
             LT -> nextCol succ
@@ -59,9 +57,9 @@ routeXY (ar, ac) (br, bc)
             EQ -> case compare ar br of
                 LT -> nextRow succ
                 GT -> nextRow pred
-        cur = ((ar, ac), next) :: Link
-        nextCol dir = (ar, dir ac)
-        nextRow dir = (dir ar, ac)
+        cur = Link l1 next :: Link
+        nextCol dir = Location ar (dir ac)
+        nextRow dir = Location (dir ar) ac
 
 route :: Task -> Application -> TrafficFlow
 route t a = routeXY sLoc dLoc
@@ -71,7 +69,7 @@ route t a = routeXY sLoc dLoc
         lf x = location x a
 
 basicNetworkLatency :: Platform -> Task -> Int -> Float
-basicNetworkLatency (fs, ld, rd) t hops
+basicNetworkLatency (Platform fs ld rd) t hops
     | hops == 0 = 0
     | otherwise = linkDelays + routerDelays + otherFlitLinkDelays
         where
@@ -79,7 +77,8 @@ basicNetworkLatency (fs, ld, rd) t hops
             routers = fromIntegral hops - 1
             linkDelays = links * ld
             routerDelays = routers * rd
-            flits = fromIntegral . ceiling $ (fromIntegral . cSize . tCommunication) t / fs
+            flits :: Float
+            flits = (fromIntegral . cSize . tCommunication) t / fs
             otherFlitLinkDelays = flits * ld
 
 analysisR :: Intermediates -> S.Set Task -> Task -> Float -> CResponseTime
@@ -126,7 +125,7 @@ communicationAnalysisR (cur:remain) i = communicationAnalysisR remain nextI
         nextI = (newTimes, responseTimes, trafficFlows, dInterferences, latencies)
 
 scalePlatform :: Platform -> ScaleFactor -> Platform
-scalePlatform p@(fs, ld, rd) sf = (fs, ld * sf, rd * sf)
+scalePlatform (Platform fs ld rd) sf = Platform fs (ld * sf) (rd * sf)
 
 -- Should be returning EndToEndResponseTimes
 communicationAnalysis :: Platform 
@@ -134,7 +133,7 @@ communicationAnalysis :: Platform
                       -> Application 
                       -> M.Map Task TResponseTime 
                       -> M.Map Task CResponseTime
-communicationAnalysis p sf a@(_, ts, _, _) responseTimes =
+communicationAnalysis p sf a@(Application _ ts _ _) responseTimes =
     communicationAnalysisR tss (M.empty, responseTimes, trafficFlows, directInterference, basicLatencies)
         where
             scaledPlatform = scalePlatform p sf
