@@ -23,12 +23,22 @@ task3Sch = Task 3 20 20 3 4 defaultComm
 -- C > D for the following
 task4 = Task 4 50 50 4 100 defaultComm 
 
+
+
 tests :: TestTree
-tests = testGroup "Response time" 
-    [ testScaling
+tests = testGroup "Response time" [units, properties]
+
+units :: TestTree
+units = testGroup "Unit tests" 
+    [ scalingTests
     , singleResponseTimeTests
     , allResponseTimeTests
     ]
+
+properties :: TestTree
+properties = testGroup "Properties" []
+
+scalingTests = testGroup "Scaling" [testScaling]
 
 singleResponseTimeTests = testGroup "Single response time"
     [ testSingleSolvableFirst

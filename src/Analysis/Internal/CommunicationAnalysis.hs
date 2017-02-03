@@ -57,6 +57,7 @@ routeXY l1@(Location ar ac) l2@(Location br bc)
             EQ -> case compare ar br of
                 LT -> nextRow succ
                 GT -> nextRow pred
+                EQ -> error "Should be already handled"
         cur = Link l1 next :: Link
         nextCol dir = Location ar (dir ac)
         nextRow dir = Location (dir ar) ac
