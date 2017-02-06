@@ -38,7 +38,7 @@ location taskId (Application _ _ tm cm) = fromJust $ M.lookup c cm
 directlyInterferes :: Task -> TrafficFlow -> Task -> TrafficFlow -> Bool
 directlyInterferes t tf target targetTf = hp && intersecting
     where
-        hp = tPriority t < tPriority target
+        hp = tPriority t > tPriority target
         intersecting = not . null . intersect tf $ targetTf
 
 directInterferenceSet :: Task -> M.Map Task TrafficFlow -> [Task]
@@ -86,9 +86,6 @@ basicNetworkLatency (Platform fs ld rd) t hops
 analysisR :: Intermediates -> S.Set Task -> Task -> Float -> CResponseTime
 analysisR i@(endToEnds, rts, _, dis, bls) indirectTasks t previousTime
     | previousTime > tDeadline t = Nothing
-    -- If any tasks that directly interfere with t have no response time
-    | any isNothing $ map (fetch rts) taskDi = Nothing
-    | any isNothing $ map (fetch endToEnds) taskDi = Nothing
     | previousTime == currentTime = Just currentTime
     | otherwise = analysisR i indirectTasks t currentTime
         where
@@ -102,8 +99,11 @@ analysisR i@(endToEnds, rts, _, dis, bls) indirectTasks t previousTime
             currentTime = debugOut $ fetch bls t + sum (map interference taskDi)
 
 analysis :: Intermediates -> Task -> CResponseTime
-analysis i@(_, rts, _, dis, _) t
+analysis i@(endToEnds, rts, _, dis, _) t
     | isNothing (fetch rts t) = Nothing
+    -- If any tasks that directly interfere with t have no response time
+    | any isNothing $ map (fetch rts) taskDi = Nothing
+    | any isNothing $ map (fetch endToEnds) taskDi = Nothing
     | otherwise = analysisR i indirectTasks t 0.0
     where
         taskDi = fetch dis t

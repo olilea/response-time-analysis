@@ -92,20 +92,20 @@ taskRoutingTests = testGroup "Task routing"
     , testTaskRouteWhenDestNotSource
     ]
 
-directInterferenceTests = testGroup "Direct interference" []
-    -- [ testNoInterference
-    -- , testInteference
-    -- ]
+directInterferenceTests = testGroup "Direct interference"
+    [ testNoInterference tfMap
+    , testInterference tfMap
+    ]
+        where
+            tfMap = M.fromList . map (\t -> (t, route t application)) $ tasks
 
-latencyTests = testGroup "Basic network latency" []
+latencyTests = testGroup "Basic network latency"
+    [ testLantecyDestIsSource
+    , testLatencySingleHop
+    , testLatencyMultiHop]
 
 analysisTests = testGroup "Communication analysis" 
-    [ singleCommTimeTests
-    , overallCommTimeTests
-    ]
-
-singleCommTimeTests = testGroup "Single communication analysis" []
-overallCommTimeTests = testGroup "Overall communication analysis" []
+    [ testCommunicationAnalysis ]
 
 -- TESTS
 
@@ -153,13 +153,38 @@ testXyGoingRight = testCase "When dest is directly right of source" $
 
 -- Task routing
 
-testTaskRouteWhenDestIsSame = testCase "Should route task when the destination is the same as source" $
+testTaskRouteWhenDestIsSame = testCase "When the destination is the same as source" $
     route (tasks !! 5) application @?= []
 
-testTaskRouteWhenDestNotSource = testCase "Should route task when destination is different to source" $
+testTaskRouteWhenDestNotSource = testCase "When destination is different to source" $
     route (tasks !! 2) application @?= expected
         where
             expected = [ Link (Location 3 3) (Location 3 2)
                        , Link (Location 3 2) (Location 3 1)
                        , Link (Location 3 1) (Location 2 1)
                        ]
+
+-- Direct interference
+
+testNoInterference tfMap = testCase "When there is none" $
+    directInterferenceSet (tasks !! 3) tfMap @?= []
+
+testInterference tfMap = testCase "When there is direct interference" $
+    directInterferenceSet (tasks !! 2) tfMap @?= [tasks !! 1]
+
+-- Basic latency
+
+testLantecyDestIsSource = testCase "When destination is the same as the source" $
+    basicNetworkLatency platform (tasks !! 5) 0 @?= 0.0
+
+testLatencySingleHop = testCase "When destination is one hop away from the source" $
+    basicNetworkLatency platform (tasks !! 0) 1 @?= 6.0
+
+testLatencyMultiHop = testCase "When destination is multiple hops away from the source" $
+    basicNetworkLatency platform (tasks !! 2) 3 @?= 10.0
+
+-- Communication analysis
+testCommunicationAnalysis = testCase "When the tasks are all schedulable" $
+    communicationAnalysis platform 1.0 application rts @?= M.empty
+        where
+            rts = M.empty
