@@ -1,9 +1,10 @@
 
 module Analysis.Internal.CommunicationAnalysis
-    (
-        communicationAnalysis,
-        routeXY
-    )
+    ( directInterferenceSet
+    , routeXY
+    , route
+    , basicNetworkLatency
+    , communicationAnalysis)
 where
 
 import Analysis.Internal.Structures
