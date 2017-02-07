@@ -33,7 +33,7 @@ cores :: [Core]
 cores = [Core idee 1.0 | idee <- [1..9]]
 
 tasks :: [Task]
-tasks = [Task idee 20.0 20.0 idee 1.0 (Communication (destination idee) 5)
+tasks = [Task idee 20.0 20.0 1.0 (Communication (destination idee) 5)
         | idee <- [1..6]]
     where
         destination tIdee = fromJust $ M.lookup tIdee destLookup
@@ -50,7 +50,7 @@ platform :: Platform
 platform = Platform 1.0 1.0 1.0
 
 application :: Application
-application = Application cores tasks taskMapping coreMapping
+application = Application cores tasks taskMapping coreMapping priorityMapping
 
 coreMapping :: CoreMapping
 coreMapping = M.fromList $ zip [1..9] [Location r c | r <- [1..3], c <- [1..3]]
@@ -64,6 +64,8 @@ taskMapping = M.fromList
     , (5, 1)
     , (6, 8)
     ]
+
+priorityMapping = M.fromList [(x, x) | x <- [1..length tasks]]
 
 tests :: TestTree
 tests = testGroup "Communication time" [unitTests]
@@ -167,10 +169,10 @@ testTaskRouteWhenDestNotSource = testCase "When destination is different to sour
 -- Direct interference
 
 testNoInterference tfMap = testCase "When there is none" $
-    directInterferenceSet (tasks !! 3) tfMap @?= []
+    directInterferenceSet (tasks !! 3) priorityMapping tfMap @?= []
 
 testInterference tfMap = testCase "When there is direct interference" $
-    directInterferenceSet (tasks !! 2) tfMap @?= [tasks !! 1]
+    directInterferenceSet (tasks !! 2) priorityMapping tfMap @?= [tasks !! 1]
 
 -- Basic latency
 

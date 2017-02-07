@@ -1,7 +1,7 @@
 module Analysis.Internal.Utils
     (
         debugOut,
-        ascendingPriority,
+        descendingPriority,
         flattenMap,
         fetch,
         expandId,
@@ -21,8 +21,10 @@ import Analysis.Internal.Structures
 debugOut :: (Show a) => a -> a
 debugOut a = traceShow a a
 
-ascendingPriority :: [Task] -> [Task]
-ascendingPriority = sortBy (comparing tPriority)
+descendingPriority :: [Task] -> PriorityMapping -> [Task]
+descendingPriority ts pm = map fst ps
+    where
+        ps = sortBy (comparing snd) . map (\t -> (t, fetch pm (tId t))) $ ts
 
 flattenMap :: Ord k => [M.Map k a] -> M.Map k a
 flattenMap = M.fromList . concatMap M.toList
@@ -36,7 +38,7 @@ expandId idLookup = M.mapKeys fromId
         fromId x = fromJust . M.lookup x $ idLookup
 
 tasksOnCore :: Core -> Application -> M.Map TaskId Task -> [Task]
-tasksOnCore c (Application _ _ tm _) taskLookup = map (toTask . fst) . filter isOnCore . M.toList $ tm
+tasksOnCore c (Application _ _ tm _ _) taskLookup = map (toTask . fst) . filter isOnCore . M.toList $ tm
     where
         isOnCore (_, coreId) = coreId == cId c
         toTask task = fromJust $ M.lookup task taskLookup

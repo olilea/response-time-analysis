@@ -34,10 +34,11 @@ type TrafficFlow = [Link]
 
 type CoreMapping = M.Map CoreId Location
 type TaskMapping = M.Map TaskId CoreId
+type PriorityMapping = M.Map TaskId TaskPriority
 
 data Platform = Platform FlitSize LinkDelay RoutingDelay
     deriving (Eq, Show)
-data Application = Application [Core] [Task] TaskMapping CoreMapping
+data Application = Application [Core] [Task] TaskMapping CoreMapping PriorityMapping
     deriving (Eq, Show)
 
 class (Ord a) => Unique a where
@@ -52,7 +53,6 @@ data Task = Task {
     tId :: Id,
     tPeriod :: TaskPeriod,
     tDeadline :: TaskDeadline,
-    tPriority :: TaskPriority,
     tComputation :: TaskComputation,
     tCommunication :: Communication
 } deriving (Show)
@@ -61,10 +61,10 @@ instance Unique Task where
     idee = tId
 
 instance Eq Task where
-    (Task id1 _ _ _ _ _) == (Task id2 _ _ _ _ _) = id1 == id2
+    (Task id1 _ _ _ _) == (Task id2 _ _ _ _) = id1 == id2
 
 instance Ord Task where
-    (Task id1 _ _ _ _ _) `compare` (Task id2 _ _ _ _ _) = id1 `compare` id2
+    (Task id1 _ _ _ _) `compare` (Task id2 _ _ _ _) = id1 `compare` id2
 
 data Core = Core {
     cId :: Id,

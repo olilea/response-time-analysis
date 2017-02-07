@@ -44,12 +44,12 @@ responseTimesR ts rts = responseTimesR remaining nrts
         (highest:remaining) = ts
         nrts = M.insert highest (responseTimeSingle highest rts) rts
 
-responseTimes :: [Task] -> M.Map Task ResponseTime
-responseTimes []  = M.empty
-responseTimes ts = responseTimesR remaining rts
+responseTimes :: PriorityMapping -> [Task] -> M.Map Task ResponseTime
+responseTimes _ []  = M.empty
+responseTimes pm ts = responseTimesR remaining rts
     where
-        (highest:remaining) = ascendingPriority ts
+        (highest:remaining) = descendingPriority ts pm
         rts = M.singleton highest $ responseTimeSingle highest M.empty
 
-responseTimeAnalysis :: [Task] -> Core -> ScaleFactor -> ResponseMap
-responseTimeAnalysis ts c sf = responseTimes . map (scale sf . scale (1.0 / cSpeed c)) $ ts
+responseTimeAnalysis :: [Task] -> PriorityMapping -> Core -> ScaleFactor -> ResponseMap
+responseTimeAnalysis ts pm c sf = responseTimes pm . map (scale sf . scale (1.0 / cSpeed c)) $ ts

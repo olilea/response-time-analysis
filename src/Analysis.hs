@@ -14,11 +14,11 @@ import qualified Data.Map as M
 import Data.Maybe
 
 endToEnd :: Platform -> ScaleFactor -> Application -> M.Map Task ResponseTime
-endToEnd p sf a@(Application cs ts _ _) = es
+endToEnd p sf a@(Application cs ts _ _ pm) = es
     where
         taskLookup = M.fromList. map (\t -> (tId t, t)) $ ts
         rts = flattenMap
-                    . map (\c -> responseTimeAnalysis (tasksOnCore c a taskLookup) c sf)
+                    . map (\c -> responseTimeAnalysis (tasksOnCore c a taskLookup) pm c sf)
                     $ cs
         commTimes = communicationAnalysis p sf a rts
         es = M.fromList

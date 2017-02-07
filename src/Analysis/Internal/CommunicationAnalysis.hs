@@ -31,21 +31,27 @@ core :: TaskId -> TaskMapping -> CoreId
 core t tm = fromJust $ M.lookup t tm
 
 location :: TaskId -> Application -> Location
-location taskId (Application _ _ tm cm) = fromJust $ M.lookup c cm
+location taskId (Application _ _ tm cm _) = fromJust $ M.lookup c cm
     where
         c = core taskId tm
 
-directlyInterferes :: Task -> TrafficFlow -> Task -> TrafficFlow -> Bool
-directlyInterferes t tf target targetTf = hp && intersecting
+directlyInterferes :: (Task, TaskPriority, TrafficFlow)
+                   -> (Task, TaskPriority, TrafficFlow)
+                   -> Bool
+directlyInterferes (t, tp, tf) (target, targetP, targetTf) = targetHp && intersecting
     where
-        hp = tPriority t > tPriority target
+        targetHp = tp > targetP
         intersecting = not . null . intersect tf $ targetTf
 
-directInterferenceSet :: Task -> M.Map Task TrafficFlow -> [Task]
-directInterferenceSet t tfs = interfering
+directInterferenceSet :: Task -> PriorityMapping -> M.Map Task TrafficFlow -> [Task]
+directInterferenceSet t pm tfs = interfering
     where
-        interfering = M.keys . M.filterWithKey (\t2 _ -> directlyInterferes t (tFlow t) t2 (tFlow t2)) $ tfs
-        tFlow task = fromJust . M.lookup task $ tfs 
+        interfering = M.keys
+                    . M.filterWithKey (\t2 _->
+                        directlyInterferes (t, priority t, tFlow t) (t2, priority t2, tFlow t2))
+                    $ tfs
+        priority = fetch pm . tId
+        tFlow = fetch tfs
 
 routeXY :: Location -> Location -> TrafficFlow
 routeXY l1@(Location ar ac) l2@(Location br bc)
@@ -135,7 +141,7 @@ communicationAnalysis :: Platform
                       -> Application 
                       -> M.Map Task TResponseTime 
                       -> M.Map Task CResponseTime
-communicationAnalysis p sf a@(Application _ ts _ _) responseTimes =
+communicationAnalysis p sf a@(Application _ ts _ _ pm) responseTimes =
     communicationAnalysisR tss (M.empty, responseTimes, trafficFlows, directInterference, basicLatencies)
         where
             scaledPlatform = scalePlatform p sf
@@ -145,10 +151,10 @@ communicationAnalysis p sf a@(Application _ ts _ _) responseTimes =
                          . map (\t -> (tId t, route t a))
                          $ ts
             directInterference = M.fromList
-                         . map (\t -> (t, directInterferenceSet t trafficFlows))
+                         . map (\t -> (t, directInterferenceSet t pm trafficFlows))
                          $ ts
             basicLatencies = M.fromList
                          . map (\(t, tf) -> (t, basicNetworkLatency scaledPlatform t (length tf)))
                          . M.toList 
                          $ trafficFlows
-            tss = ascendingPriority ts
+            tss = descendingPriority ts pm
