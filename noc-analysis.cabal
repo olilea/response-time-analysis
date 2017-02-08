@@ -22,6 +22,7 @@ library
   build-depends:       base >= 4.7 && < 5
                        , containers
                        , random
+                       
 
 test-suite tests
   default-language:    Haskell2010

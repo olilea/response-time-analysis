@@ -10,10 +10,12 @@ import System.Random
 
 -- Need a way to assign fitness to each thing
 
-data Individual = Individual PriorityMapping TaskMapping
 
-data Solution = Solution PriorityMapping TaskMapping
-data Population = Population [PriorityMapping] [TaskMapping]
+class (Eq a, Show a) => Genome a where
+    fitness :: [a] -> a -> Float
+    crossover :: (RandomGen g) => g -> a -> a -> ([a], g)
+    mutation :: (RandomGen g) => g -> a -> (a, g)
+
 
 data EvolutionParameters = EvolutionParameters {
     eGenerations :: Int,
@@ -22,29 +24,23 @@ data EvolutionParameters = EvolutionParameters {
     eMutationRate :: Float
 }
 
-randomPriorityMapping :: PriorityMapping
-randomPriorityMapping = M.empty
+data Priorities = Priorities PriorityMapping
+instance Genome Priorities where
+    fitness :: (Mapping m) => a -> m -> Float
+    fitness _ _ = 1.0
+    crossover g l r = ([l, r], g)
+    mutation g a = (a, g)
 
-randomTaskMapping :: TaskMapping
-randomTaskMapping = M.empty
+data Mapping = Mapping TaskMapping
+instance Genome Mapping where
+    fitness :: (Priorities p) => a -> p -> Float
+    fitness = 0.0
+    crossover g l r = ([l, r], g)
+    mutation g a = (a, g)
 
-generationR :: Platform
-            -> Application
-            -> EvolutionParameters
-            -> Population
-            -> Int
-            -> Solution
-generationR _ _ _ sol 0 = Solution M.empty M.empty
-generationR p a ep pops genRemain = generationR p a ep nextPop (genRemain-1)
-    where
-        nextPop = pops
 
-coevolve :: Platform
-         -> Application 
-         -> EvolutionParameters
-         -> Solution
-coevolve p a ep = generationR p a ep pops (eGenerations ep)
-    where
-        popSize = ePopulationSize ep
-        pops = Population [randomPriorityMapping | x <- [1..popSize]] [randomTaskMapping | x <- [1..popSize]]
-    
+coevolve :: EvolutionParameters
+         -> Application
+         -> Platform
+         -> Mapping
+coevolve ep a p = Mapping M.empty
