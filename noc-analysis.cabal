@@ -19,6 +19,7 @@ executable coevolve
                        , MonadRandom
                        , noc-analysis
                        , random-shuffle
+                       , random-extras
   main-is:             Main.hs
   hs-source-dirs:      src/evolution
 

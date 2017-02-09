@@ -15,6 +15,7 @@ import qualified Data.Map as M
 import System.Random
 import System.Random.Shuffle
 
+type Population = ([(Priorities, Float)], [(Mapping, Float)])
 
 -- Maps task ID to priority
 type Priorities = [(Int, Int)]
@@ -30,6 +31,9 @@ data EvolutionParameters = EvolutionParameters {
     eMutationRate :: Float
 }
 
+pick :: (MonadRandom m) => [a] -> m a
+pick as = (!!) as <$> getRandomR (0, (length as) - 1)
+
 -- Mutation
 
 swapMutate :: (MonadRandom m, Eq a)
@@ -44,7 +48,7 @@ swapMutate mtPb mp = do
         | x == mapping1 = mapping2
         | x == mapping2 = mapping1
         | otherwise = x
-  return $ []
+  return $ map swap mp
 
 -- Crossover
 
@@ -81,15 +85,15 @@ genMapping ts cs = mapM prod [1..ts]
             return (i, r)
 
 genPriorities :: (MonadRandom m) => Int -> m Priorities
-genPriorities ts = do 
+genPriorities ts = do
   priorities <- shuffleM [1..ts]
   let tasks = [1..ts]
   return $ zip tasks priorities
 
 genPopulations :: (MonadRandom m)
-               => Int 
+               => Int
                -> Int
-               -> Int 
+               -> Int
                -> m ([Priorities], [Mapping])
 genPopulations popSize cs ts = do
     let populate = replicateM popSize
@@ -111,23 +115,46 @@ runGA g ep d@(Domain cs ts p) fnf = evalRand run g
         pop <- zeroGen ep d fnf
         runGA' ep d fnf pop 0
 
+initialFitnessPri :: (MonadRandom m)
+                 => Domain
+                 -> (Domain -> Priorities -> Mapping -> Float)
+                 -> ([Priorities], [Mapping])
+                 -> m [(Priorities, Float)]
+initialFitnessPri d@(Domain cs ts _) fnf (ps, ms) = do
+  mPicks <- replicateM (length ms) (pick ms)
+  return $ map (\(p, m) -> (p, fnf d p m)) $ zip ps mPicks
+
+initialFitnessMap :: (MonadRandom m)
+                  => Domain
+                  -> (Domain -> Priorities -> Mapping -> Float)
+                  -> ([Priorities], [Mapping])
+                  -> m [(Mapping, Float)]
+initialFitnessMap d@(Domain cs ts _) fnf (ps, ms) = do
+  pPicks <- replicateM (length ps) (pick ps)
+  return $ map (\(p, m) -> (p, fnf d p m)) $ zip pPicks ms
+
 -- Create an initial population and assign them each a fitness.
 -- This fitness is the result of a random pairing across the
 -- subpopulations.
-zeroGen ep d@(Domain cs ts _) fnf = do
-  (ps, ms) <- genPopulations popSize cs ts
-    where
-      popSize = ePopulationSize ep cs ts
+zeroGen :: (MonadRandom m)
+        => EvolutionParameters
+        -> Domain
+        -> (Domain -> Priorities -> Mapping -> Float)
+        -> m Population
+zeroGen ep@(EvolutionParameters popSize _ _ _) d@(Domain cs ts _) fnf = do
+  (ps, ms) <- genPopulations popSize (length cs) (length ts)
+  (,) <$> initialFitnessPri d fnf (ps, ms)
+      <*> initialFitnessMap d fnf (ps, ms)
 
 runGA' :: (MonadRandom m)
           => EvolutionParameters
           -> Domain
           -> (Domain -> Priorities -> Mapping -> Float)
-          -> ([Priorities], [Mapping])
+          -> ([(Priorities, Float)], [(Mapping, Float)])
           -> Int
           -> m (Priorities, Mapping)
 runGA' ep@(EvolutionParameters gens _ cxPb mtPb) d fnf pop@(ps, ms) genNumber
-  | genNumber == gens = return (head ps, head ms)
+  | genNumber == gens = return ((fst . head) ps, (fst . head) ms)
   | otherwise = do
       pop' <- evolve ep d fnf pop
       runGA' ep d fnf pop (genNumber + 1)
@@ -138,12 +165,12 @@ evolve :: (MonadRandom m)
        => EvolutionParameters
        -> Domain
        -> (Domain -> Priorities -> Mapping -> Float)
-       -> ([(Priorities, Float)], ([(Mapping, Float)]))
+       -> Population 
+       -> m Population
 evolve ep@(EvolutionParameters _ _ cxPb mtPb) d fnf pop@(ps, ms) = return pop
-  
 
 main :: IO ()
-main = putStrLn $ show $ runGA g ep (Domain cs ts p)
+main = putStrLn $ show $ runGA g ep (Domain cs ts p) (\_ _ _ -> 1.0)
     where
         g = mkStdGen 42
         ep = EvolutionParameters 10 10 0.5 0.5
