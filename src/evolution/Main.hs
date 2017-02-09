@@ -66,7 +66,13 @@ mappingCrossover :: (MonadRandom m)
                  -> m Mapping
 mappingCrossover = singlePointCrossover
 
--- How should this even be implemented?
+-- It must be the case that if two tasks share a priority then
+-- there is a priority that is not being used.
+-- In this case, randomly pick one of the tasks to retain the given
+-- priority.
+-- For the other task, assign it a one lower priority
+-- and increment the priority of every task whose priority is
+-- below this point.
 priorityCrossover :: (MonadRandom m)
                   => Priorities
                   -> Priorities
@@ -75,7 +81,7 @@ priorityCrossover l r = singlePointCrossover (order l) (order r)
   where
     order = sortBy (comparing fst)
 
--- Generating the original population
+-- Generating the initial population
 
 genMapping :: (MonadRandom m) => Int -> Int -> m Mapping
 genMapping ts cs = mapM prod [1..ts]
@@ -122,7 +128,12 @@ initialFitnessPri :: (MonadRandom m)
                  -> m [(Priorities, Float)]
 initialFitnessPri d@(Domain cs ts _) fnf (ps, ms) = do
   mPicks <- replicateM (length ms) (pick ms)
-  return $ map (\(p, m) -> (p, fnf d p m)) $ zip ps mPicks
+  -- Take a [Priorities] and produce a [(Priorities, Fitness)], sorted
+  return
+    . reverse
+    . sortBy (comparing snd)
+    . map (\(p, m) -> (p, fnf d p m))
+    $ zip ps mPicks
 
 initialFitnessMap :: (MonadRandom m)
                   => Domain
@@ -131,7 +142,12 @@ initialFitnessMap :: (MonadRandom m)
                   -> m [(Mapping, Float)]
 initialFitnessMap d@(Domain cs ts _) fnf (ps, ms) = do
   pPicks <- replicateM (length ps) (pick ps)
-  return $ map (\(p, m) -> (p, fnf d p m)) $ zip pPicks ms
+  -- Take a [Mapping] and produce a [(Mapping, Fitness)], sorted.
+  return
+    . reverse
+    . sortBy (comparing snd)
+    . map (\(p, m) -> (p, fnf d p m))
+    $ zip pPicks ms
 
 -- Create an initial population and assign them each a fitness.
 -- This fitness is the result of a random pairing across the
@@ -146,11 +162,12 @@ zeroGen ep@(EvolutionParameters popSize _ _ _) d@(Domain cs ts _) fnf = do
   (,) <$> initialFitnessPri d fnf (ps, ms)
       <*> initialFitnessMap d fnf (ps, ms)
 
+-- The recursive part of the GA
 runGA' :: (MonadRandom m)
           => EvolutionParameters
           -> Domain
           -> (Domain -> Priorities -> Mapping -> Float)
-          -> ([(Priorities, Float)], [(Mapping, Float)])
+          -> Population
           -> Int
           -> m (Priorities, Mapping)
 runGA' ep@(EvolutionParameters gens _ cxPb mtPb) d fnf pop@(ps, ms) genNumber
@@ -172,7 +189,7 @@ evolve ep@(EvolutionParameters _ _ cxPb mtPb) d fnf pop@(ps, ms) = return pop
 main :: IO ()
 main = putStrLn $ show $ runGA g ep (Domain cs ts p) (\_ _ _ -> 1.0)
     where
-        g = mkStdGen 42
+        g = mkStdGen 43
         ep = EvolutionParameters 10 10 0.5 0.5
         cs = [Core idee 1.0 | idee <- [1..9]]
         ts = [Task idee 20.0 20.0 1.0 (Communication (destination idee) 5)
