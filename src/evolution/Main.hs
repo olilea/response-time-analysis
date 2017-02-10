@@ -259,8 +259,8 @@ runGA' :: (MonadRandom m)
 runGA' ep@(EvolutionParameters gens _ _ _ cxPb mtPb) dom fnf pop@(ps, ts) genNumber
   | genNumber == gens = return ((fst . head) ps, (fst . head) ts)
   | otherwise = do
-      !pop' <- evolve ep dom fnf representatives pop
-      traceShow pop' $ runGA' ep dom fnf pop' (genNumber + 1)
+      pop' <- evolve ep dom fnf representatives pop
+      runGA' ep dom fnf pop' (genNumber + 1)
         where
           representatives = represent pop
 
@@ -276,10 +276,10 @@ evolve :: (MonadRandom m)
 evolve ep dom fnf reps pop@(ps, ts) = do
   selectedPs <- select ps
   selectedTs <- select ts
-  !offspringPs <- (++) selectedPs <$> offspring priorityCrossover selectedPs
+  offspringPs <- (++) selectedPs <$> offspring priorityCrossover selectedPs
   offspringTs <- (++) selectedTs <$> offspring mappingCrossover selectedTs
-  !newGenPs <- mapM (mutate mtPb swapMutate) offspringPs
-  !newGenTs <- mapM (mutate mtPb (flipMutate (1, length cs))) offspringTs
+  newGenPs <- mapM (mutate mtPb swapMutate) offspringPs
+  newGenTs <- mapM (mutate mtPb (flipMutate (1, length cs))) offspringTs
   return $ evaluateFitness fnf reps (newGenPs, newGenTs)
     where
       (EvolutionParameters _ popSize tournSize selectCount cxPb mtPb) = ep
