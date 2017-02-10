@@ -64,18 +64,29 @@ tournament size xs = do
 
 -- Should pass in only the assignments
 swapMutate :: (MonadRandom m, Eq a)
-           => Float
-           -> [a]
+           => [a]
            -> m [a]
-swapMutate mtPb mp = do
-  rs <- take 2 <$> getRandomRs (0, (length mp) - 1)
-  let mapping1 = mp !! (rs !! 0)
-  let mapping2 = mp !! (rs !! 1)
+swapMutate as = do
+  rs <- take 2 <$> getRandomRs (0, (length as) - 1)
+  let mapping1 = as !! (rs !! 0)
+  let mapping2 = as !! (rs !! 1)
   let swap x
         | x == mapping1 = mapping2
         | x == mapping2 = mapping1
         | otherwise = x
-  return $ map swap mp
+  return $ map swap as
+
+flipMutate :: (MonadRandom m)
+           => (Int, Int)
+           -> [Int]
+           -> m [Int]
+flipMutate range@(low, high) as = do
+  chosen <- pick as
+  newVal <- pick [low..high]
+  let flipper = \x -> case () of
+        _ | x == chosen -> newVal
+          | otherwise -> x
+  return $ map flipper as
 
 -- Crossover
 
@@ -109,11 +120,23 @@ mappingCrossover = singlePointCrossover
 -- For the other task, assign it a one lower priority
 -- and increment the priority of every task whose priority is
 -- below this point.
+--
+-- TODO: Need to add the random selection between the two
 priorityCrossover :: (MonadRandom m)
                   => PMap
                   -> PMap
                   -> m PMap
-priorityCrossover l r = undefined
+priorityCrossover l r = do
+  crossed <- sortBy (comparing snd) <$> singlePointCrossover l r
+  sortBy (comparing snd) . zip (map fst crossed) <$> (mapM id $ fixPriorities (map snd crossed))
+
+fixPriorities :: (MonadRandom m) => [Int] -> [m Int]
+fixPriorities ps = case ps of
+  (a:[]) -> [return a]
+  (a:b:rem) -> if a /= b
+    then (return a):(fixPriorities (b:rem))
+    else do
+      (return a):(fixPriorities ((b + 1):rem))
 
 -- Generating the initial population
 
@@ -152,7 +175,6 @@ initialPriorityFitness d@(Domain cs ts _) fnf (ps, ms) = do
   mPicks <- replicateM (length ms) (pick ms)
   -- Take a [PMap] and produce a [(Priorities, Fitness)], sorted
   return
-    . reverse
     . sortBy (comparing snd)
     . map (\(p, m) -> (p, fnf d p m))
     $ zip ps mPicks
@@ -167,7 +189,6 @@ initialTaskMapFitness :: (MonadRandom m)
 initialTaskMapFitness d@(Domain cs ts _) fnf (ps, ms) = do
   pPicks <- replicateM (length ps) (pick ps)
   return
-    . reverse
     . sortBy (comparing snd)
     . map (\(p, m) -> (p, fnf d p m))
     $ zip pPicks ms
@@ -242,10 +263,10 @@ evolve :: (MonadRandom m)
 evolve ep fnf reps pop@(ps, ts) = do
   selectedPs <- select ps
   selectedTs <- select ts
-  offspringPs <- offspring priorityCrossover selectedPs
-  offspringTs <- offspring mappingCrossover selectedTs
-  newGenPs <- mapM (swapMutate mtPb) $ selectedPs ++ offspringPs
-  newGenTs <- mapM (swapMutate mtPb) $ selectedTs ++ offspringTs
+  !offspringPs <- (++) selectedPs <$> offspring priorityCrossover selectedPs
+  offspringTs <- traceShow offspringPs $ (++) selectedTs <$> offspring mappingCrossover selectedTs
+  newGenPs <- mapM (mutate mtPb swapMutate) offspringPs
+  newGenTs <- mapM (mutate mtPb swapMutate) offspringTs
   return $ evaluateFitness fnf reps (newGenPs, newGenTs)
     where
       (EvolutionParameters _ popSize tournSize selectCount cxPb mtPb) = ep
@@ -253,6 +274,22 @@ evolve ep fnf reps pop@(ps, ts) = do
       mOrig = map fst ts
       select xs = replicateM selectCount (tournament tournSize xs)
       offspring cxF subpop = replicateM (popSize - (length subpop)) (reproduce cxF subpop)
+
+mutate :: (MonadRandom m)
+       => Float
+       -> ([Int] -> m [Int])
+       -> [(Int, Int)]
+       -> m [(Int, Int)]
+mutate mtPb mutation ind = do
+  r <- getRandomR (0.0, 1.0)
+  if r <= mtPb
+    then return ind
+    else do
+      mutated <- mutation values
+      return $ zip subject mutated
+        where
+          subject = map fst ind
+          values = map snd ind
 
 evaluateFitness :: (PMap -> TMap -> Float)
                 -> (PMap, TMap)
@@ -263,12 +300,6 @@ evaluateFitness fnf (pRep, mRep) (ps, ts) = (pFit, tFit)
     pFit = map (\p -> (p, fnf p mRep)) ps
     tFit = map (\m -> (m, fnf pRep m)) ts
 
-vary :: (MonadRandom m)
-     => (Float, Float)
-     -> ([PMap], [TMap])
-     -> m ([PMap], [TMap])
-vary = undefined
-
 main :: IO ()
 main = do
   let mappings = runGA g ep d fnf
@@ -276,7 +307,7 @@ main = do
   putStrLn . show $ fnf d (fst mappings) (snd mappings)
     where
         g = mkStdGen 42
-        ep = EvolutionParameters 10 10 5 3 0.5 0.5
+        ep = EvolutionParameters 3 10 5 3 0.5 0.5
         cs = [Core idee 1.0 | idee <- [1..9]]
         ts = [Task idee 20.0 20.0 1.0 (Communication (destination idee) 5)
             | idee <- [1..6]]
