@@ -216,7 +216,7 @@ runGA g ep d@(Domain cs ts p) fnf = evalRand run g
   where
     run = do
         initialPop <- zeroGen popSize d fnf
-        runGA' ep (fnf d) initialPop 0
+        runGA' ep d (fnf d) initialPop 0
     popSize = ePopulationSize ep
 
 
@@ -251,15 +251,16 @@ zeroGen popSize d@(Domain cs ts _) fnf = do
 -- population by combining them with the given represntatives.
 runGA' :: (MonadRandom m)
           => EvolutionParameters
+          -> Domain
           -> (PMap -> TMap -> Float)
           -> ([(PMap, Fitness)], [(TMap, Fitness)])
           -> Int
           -> m (PMap, TMap)
-runGA' ep@(EvolutionParameters gens _ _ _ cxPb mtPb) fnf pop@(ps, ts) genNumber
+runGA' ep@(EvolutionParameters gens _ _ _ cxPb mtPb) dom fnf pop@(ps, ts) genNumber
   | genNumber == gens = return ((fst . head) ps, (fst . head) ts)
   | otherwise = do
-      !pop' <- evolve ep fnf representatives pop
-      traceShow pop' $ runGA' ep fnf pop' (genNumber + 1)
+      !pop' <- evolve ep dom fnf representatives pop
+      traceShow pop' $ runGA' ep dom fnf pop' (genNumber + 1)
         where
           representatives = represent pop
 
@@ -267,20 +268,22 @@ runGA' ep@(EvolutionParameters gens _ _ _ cxPb mtPb) fnf pop@(ps, ts) genNumber
 -- fitness function and parameters
 evolve :: (MonadRandom m)
        => EvolutionParameters
+       -> Domain
        -> (PMap -> TMap -> Float)
        -> (PMap, TMap)
        -> ([(PMap, Fitness)], [(TMap, Fitness)])
        -> m ([(PMap, Fitness)], [(TMap, Fitness)])
-evolve ep fnf reps pop@(ps, ts) = do
+evolve ep dom fnf reps pop@(ps, ts) = do
   selectedPs <- select ps
   selectedTs <- select ts
   !offspringPs <- (++) selectedPs <$> offspring priorityCrossover selectedPs
   offspringTs <- (++) selectedTs <$> offspring mappingCrossover selectedTs
   !newGenPs <- mapM (mutate mtPb swapMutate) offspringPs
-  !newGenTs <- mapM (mutate mtPb swapMutate) offspringTs
+  !newGenTs <- mapM (mutate mtPb (flipMutate (1, length cs))) offspringTs
   return $ evaluateFitness fnf reps (newGenPs, newGenTs)
     where
       (EvolutionParameters _ popSize tournSize selectCount cxPb mtPb) = ep
+      (Domain cs _ _) = dom
       pOrig = map fst ps
       mOrig = map fst ts
       select xs = replicateM selectCount (tournament tournSize xs)
