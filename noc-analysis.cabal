@@ -23,6 +23,7 @@ executable coevolve
   main-is:             Main.hs
   hs-source-dirs:      src/evolution
   extensions:          BangPatterns
+  ghc-options:         -O2 -threaded -rtsopts -with-rtsopts=-N
 
 library
   hs-source-dirs:      src/analysis

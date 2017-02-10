@@ -134,8 +134,7 @@ priorityCrossover l r = do
   let sortL = sortBy (comparing fst) l
   let sortR = sortBy (comparing fst) r
   crossedPs <- singlePointCrossover (map snd l) (map snd r)
-  fixed <- (mapM id $ fixPriorities crossedPs)
-  let combined = zip (map fst sortL) fixed
+  combined <- mapM id $ fixPriorities $ sortBy (comparing snd) . zip (map fst sortL) $ crossedPs
   return $ normalize combined
     where
       normalize ps = map (\(t, p) -> (t, p - highestPriority + 1)) sps
@@ -143,13 +142,16 @@ priorityCrossover l r = do
           sps = sortBy (comparing snd) ps
           highestPriority = snd . head $ sps
 
-fixPriorities :: (MonadRandom m) => [Int] -> [m Int]
+fixPriorities :: (MonadRandom m) => [(Int, Int)] -> [m (Int, Int)]
 fixPriorities ps = case ps of
   (a:[]) -> [return a]
-  (a:b:rem) -> if a /= b
-    then (return a):(fixPriorities (b:rem))
+  (a@(at, ap):b@(bt, bp):rem) -> if ap /= bp
+    then let diff = abs (ap - bp) in
+      if diff > 1
+        then (return a):(fixPriorities ((bt, bp - diff + 1):rem))
+        else (return a):(fixPriorities (b:rem))
     else do
-      (return a):(fixPriorities ((b + 1):rem))
+      (return a):(fixPriorities ((bt, bp + 1):rem))
 
 -- Generating the initial population
 
@@ -198,7 +200,7 @@ initialTaskMapFitness :: (MonadRandom m)
                       -> ([PMap], [TMap])
                       -> m [(TMap, Float)]
 initialTaskMapFitness d@(Domain cs ts _) fnf (ps, ms) = do
-  !pPicks <- replicateM (length ps) (pick ps)
+  pPicks <- replicateM (length ps) (pick ps)
   return
     . sortBy (comparing snd)
     . map (\(p, m) -> (m, fnf d p m))
@@ -334,8 +336,8 @@ main = do
   putStrLn . show $ mappings
   putStrLn . show $ fnf d (fst mappings) (snd mappings)
     where
-        g = mkStdGen 4453543
-        ep = EvolutionParameters 100 100 5 80 0.5 0.5
+        g = mkStdGen 44535432443
+        ep = EvolutionParameters 200 100 5 60 0.5 0.05
         cs = [Core idee 1.0 | idee <- [1..9]]
         ts = [Task idee 20.0 20.0 1.0 (Communication (destination idee) 5)
             | idee <- [1..6]]
@@ -352,4 +354,4 @@ main = do
         coreMapping = M.fromList $ zip [1..9] [Location r c | r <- [1..3], c <- [1..3]]
         p = Platform 1.0 1.0 1.0
         d = Domain cs ts p
-        fnf d pm tm = fromIntegral $ missingDeadlines p 1.0 (Application cs ts (M.fromList tm) coreMapping (M.fromList pm))
+        fnf d pm tm = fromIntegral $ missingDeadlines p 7.0 (Application cs ts (M.fromList tm) coreMapping (M.fromList pm))
