@@ -58,7 +58,7 @@ tournament :: (MonadRandom m)
            -> m a
 tournament size xs = do
   competitors <- replicateM size (pick xs)
-  return . fst . head . reverse . sortBy (comparing snd) $ competitors
+  return . fst . head . sortBy (comparing snd) $ competitors
 
 -- Mutation
 
@@ -111,7 +111,11 @@ mappingCrossover :: (MonadRandom m)
                  => TMap
                  -> TMap
                  -> m TMap
-mappingCrossover = singlePointCrossover
+mappingCrossover l r = do
+  let sortL = sortBy (comparing fst) l
+  let sortR = sortBy (comparing fst) r
+  crossedCs <- singlePointCrossover (map snd l) (map snd r)
+  return $ zip (map fst sortL) crossedCs
 
 -- It must be the case that if two tasks share a priority then
 -- there is a priority that has not been assigned to.
@@ -127,8 +131,17 @@ priorityCrossover :: (MonadRandom m)
                   -> PMap
                   -> m PMap
 priorityCrossover l r = do
-  crossed <- sortBy (comparing snd) <$> singlePointCrossover l r
-  sortBy (comparing snd) . zip (map fst crossed) <$> (mapM id $ fixPriorities (map snd crossed))
+  let sortL = sortBy (comparing fst) l
+  let sortR = sortBy (comparing fst) r
+  crossedPs <- singlePointCrossover (map snd l) (map snd r)
+  fixed <- (mapM id $ fixPriorities crossedPs)
+  let combined = zip (map fst sortL) fixed
+  return $ normalize combined
+    where
+      normalize ps = map (\(t, p) -> (t, p - highestPriority + 1)) sps
+        where
+          sps = sortBy (comparing snd) ps
+          highestPriority = snd . head $ sps
 
 fixPriorities :: (MonadRandom m) => [Int] -> [m Int]
 fixPriorities ps = case ps of
@@ -141,11 +154,9 @@ fixPriorities ps = case ps of
 -- Generating the initial population
 
 genTaskMapping :: (MonadRandom m) => Int -> Int -> m [(Int, Int)]
-genTaskMapping ts cs = mapM prod [1..ts]
-    where
-        prod i = do
-            r <- getRandomR (1, cs)
-            return (i, r)
+genTaskMapping ts cs = do
+  mappedCores <- replicateM cs (getRandomR (1, 9))
+  return $ zip [1..ts] mappedCores
 
 genPriorityMapping :: (MonadRandom m) => Int -> m [(Int, Int)]
 genPriorityMapping ts = do
@@ -187,10 +198,10 @@ initialTaskMapFitness :: (MonadRandom m)
                       -> ([PMap], [TMap])
                       -> m [(TMap, Float)]
 initialTaskMapFitness d@(Domain cs ts _) fnf (ps, ms) = do
-  pPicks <- replicateM (length ps) (pick ps)
+  !pPicks <- replicateM (length ps) (pick ps)
   return
     . sortBy (comparing snd)
-    . map (\(p, m) -> (p, fnf d p m))
+    . map (\(p, m) -> (m, fnf d p m))
     $ zip pPicks ms
 
 -- Actual GA implementation
@@ -247,8 +258,8 @@ runGA' :: (MonadRandom m)
 runGA' ep@(EvolutionParameters gens _ _ _ cxPb mtPb) fnf pop@(ps, ts) genNumber
   | genNumber == gens = return ((fst . head) ps, (fst . head) ts)
   | otherwise = do
-      pop' <- evolve ep fnf representatives pop
-      runGA' ep fnf pop' (genNumber + 1)
+      !pop' <- evolve ep fnf representatives pop
+      traceShow pop' $ runGA' ep fnf pop' (genNumber + 1)
         where
           representatives = represent pop
 
@@ -264,9 +275,9 @@ evolve ep fnf reps pop@(ps, ts) = do
   selectedPs <- select ps
   selectedTs <- select ts
   !offspringPs <- (++) selectedPs <$> offspring priorityCrossover selectedPs
-  offspringTs <- traceShow offspringPs $ (++) selectedTs <$> offspring mappingCrossover selectedTs
-  newGenPs <- mapM (mutate mtPb swapMutate) offspringPs
-  newGenTs <- mapM (mutate mtPb swapMutate) offspringTs
+  offspringTs <- (++) selectedTs <$> offspring mappingCrossover selectedTs
+  !newGenPs <- mapM (mutate mtPb swapMutate) offspringPs
+  !newGenTs <- mapM (mutate mtPb swapMutate) offspringTs
   return $ evaluateFitness fnf reps (newGenPs, newGenTs)
     where
       (EvolutionParameters _ popSize tournSize selectCount cxPb mtPb) = ep
@@ -300,14 +311,28 @@ evaluateFitness fnf (pRep, mRep) (ps, ts) = (pFit, tFit)
     pFit = map (\p -> (p, fnf p mRep)) ps
     tFit = map (\m -> (m, fnf pRep m)) ts
 
+gimme :: [Task]
+gimme = [Task idee 20.0 20.0 1.0 (Communication (destination idee) 5)
+            | idee <- [1..6]]
+            where
+                destination tIdee = fromJust $ M.lookup tIdee destLookup
+                destLookup = M.fromList
+                    [ (1, 4)
+                    , (2, 4)
+                    , (3, 1)
+                    , (4, 3)
+                    , (5, 2)
+                    , (6, 2)
+                    ]
+
 main :: IO ()
 main = do
   let mappings = runGA g ep d fnf
   putStrLn . show $ mappings
   putStrLn . show $ fnf d (fst mappings) (snd mappings)
     where
-        g = mkStdGen 42
-        ep = EvolutionParameters 3 10 5 3 0.5 0.5
+        g = mkStdGen 4453543
+        ep = EvolutionParameters 100 100 5 80 0.5 0.5
         cs = [Core idee 1.0 | idee <- [1..9]]
         ts = [Task idee 20.0 20.0 1.0 (Communication (destination idee) 5)
             | idee <- [1..6]]
