@@ -31,3 +31,9 @@ endToEnd p sf a@(Application cs ts _ _ pm) = es
             | otherwise = if total <= tDeadline t then Just total else Nothing
                 where total = fromJust r + fromJust c
 
+missingDeadlines :: Platform -> ScaleFactor -> Application -> Int
+missingDeadlines p sf a = length . filter missed . M.toList $ endToEnd p sf a
+  where
+    missed (t, mrt) = case mrt of
+      Nothing -> True
+      Just rt -> if rt > (tDeadline t) then True else False

@@ -15,6 +15,9 @@ import qualified Data.Map as M
 import System.Random
 import System.Random.Shuffle
 
+import Debug.Trace
+
+
 type Fitness = Float
 
 -- Maps task ID to priority
@@ -28,6 +31,8 @@ data Domain = Domain [Core] [Task] Platform
 data EvolutionParameters = EvolutionParameters {
     eGenerations :: Int,
     ePopulationSize :: Int,
+    eTournamentSize :: Int,
+    eSelectCount :: Int,
     eCrossoverRate :: Float,
     eMutationRate :: Float
 }
@@ -44,8 +49,20 @@ represent (ps, ts) = (extr ps, extr ts)
   where
     extr = fst . head
 
+-- Selection
+
+-- Randomly select individuals from the given population
+tournament :: (MonadRandom m)
+           => Int
+           -> [(a, Float)]
+           -> m a
+tournament size xs = do
+  competitors <- replicateM size (pick xs)
+  return . fst . head . reverse . sortBy (comparing snd) $ competitors
+
 -- Mutation
 
+-- Should pass in only the assignments
 swapMutate :: (MonadRandom m, Eq a)
            => Float
            -> [a]
@@ -62,12 +79,21 @@ swapMutate mtPb mp = do
 
 -- Crossover
 
+reproduce :: (MonadRandom m)
+           => ([(a, a)] -> [(a, a)] -> m [(a, a)])
+           -> [[(a, a)]]
+           -> m [(a, a)]
+reproduce crossoverF population = do
+  l <- pick population
+  r <- pick population
+  crossoverF l r
+
 singlePointCrossover :: (MonadRandom m)
                      => [a]
                      -> [a]
                      -> m [a]
 singlePointCrossover l r = do
-    cxPoint <- getRandomR (0, length l)
+    cxPoint <- getRandomR (1, (length l) - 1)
     return $ (take cxPoint l) ++ (drop cxPoint r)
 
 mappingCrossover :: (MonadRandom m)
@@ -158,7 +184,7 @@ runGA g ep d@(Domain cs ts p) fnf = evalRand run g
   where
     run = do
         initialPop <- zeroGen popSize d fnf
-        runGA' ep d fnf initialPop 0
+        runGA' ep (fnf d) initialPop 0
     popSize = ePopulationSize ep
 
 
@@ -193,29 +219,49 @@ zeroGen popSize d@(Domain cs ts _) fnf = do
 -- population by combining them with the given represntatives.
 runGA' :: (MonadRandom m)
           => EvolutionParameters
-          -> Domain
-          -> (Domain -> PMap -> TMap -> Float)
+          -> (PMap -> TMap -> Float)
           -> ([(PMap, Fitness)], [(TMap, Fitness)])
           -> Int
           -> m (PMap, TMap)
-runGA' ep@(EvolutionParameters gens _ cxPb mtPb) d fnf pop@(ps, ms) genNumber
-  | genNumber == gens = return ((fst . head) ps, (fst . head) ms)
+runGA' ep@(EvolutionParameters gens _ _ _ cxPb mtPb) fnf pop@(ps, ts) genNumber
+  | genNumber == gens = return ((fst . head) ps, (fst . head) ts)
   | otherwise = do
-      pop' <- evolve (cxPb, mtPb) d fnf representatives pop
-      runGA' ep d fnf pop (genNumber + 1)
+      pop' <- evolve ep fnf representatives pop
+      runGA' ep fnf pop' (genNumber + 1)
         where
           representatives = represent pop
 
 -- Evolve a population into the next generation using the provided
 -- fitness function and parameters
 evolve :: (MonadRandom m)
-       => (Float, Float)
-       -> Domain
-       -> (Domain -> PMap -> TMap -> Float)
+       => EvolutionParameters
+       -> (PMap -> TMap -> Float)
        -> (PMap, TMap)
        -> ([(PMap, Fitness)], [(TMap, Fitness)])
        -> m ([(PMap, Fitness)], [(TMap, Fitness)])
-evolve pbs d fnf repr pop@(ps, ms) = undefined
+evolve ep fnf reps pop@(ps, ts) = do
+  selectedPs <- select ps
+  selectedTs <- select ts
+  offspringPs <- offspring priorityCrossover selectedPs
+  offspringTs <- offspring mappingCrossover selectedTs
+  newGenPs <- mapM (swapMutate mtPb) $ selectedPs ++ offspringPs
+  newGenTs <- mapM (swapMutate mtPb) $ selectedTs ++ offspringTs
+  return $ evaluateFitness fnf reps (newGenPs, newGenTs)
+    where
+      (EvolutionParameters _ popSize tournSize selectCount cxPb mtPb) = ep
+      pOrig = map fst ps
+      mOrig = map fst ts
+      select xs = replicateM selectCount (tournament tournSize xs)
+      offspring cxF subpop = replicateM (popSize - (length subpop)) (reproduce cxF subpop)
+
+evaluateFitness :: (PMap -> TMap -> Float)
+                -> (PMap, TMap)
+                -> ([PMap], [TMap])
+                -> ([(PMap, Float)], [(TMap, Float)])
+evaluateFitness fnf (pRep, mRep) (ps, ts) = (pFit, tFit)
+  where
+    pFit = map (\p -> (p, fnf p mRep)) ps
+    tFit = map (\m -> (m, fnf pRep m)) ts
 
 vary :: (MonadRandom m)
      => (Float, Float)
@@ -224,10 +270,13 @@ vary :: (MonadRandom m)
 vary = undefined
 
 main :: IO ()
-main = putStrLn $ show $ runGA g ep (Domain cs ts p) (\_ _ _ -> 1.0)
+main = do
+  let mappings = runGA g ep d fnf
+  putStrLn . show $ mappings
+  putStrLn . show $ fnf d (fst mappings) (snd mappings)
     where
-        g = mkStdGen 43
-        ep = EvolutionParameters 10 10 0.5 0.5
+        g = mkStdGen 42
+        ep = EvolutionParameters 10 10 5 3 0.5 0.5
         cs = [Core idee 1.0 | idee <- [1..9]]
         ts = [Task idee 20.0 20.0 1.0 (Communication (destination idee) 5)
             | idee <- [1..6]]
@@ -241,4 +290,7 @@ main = putStrLn $ show $ runGA g ep (Domain cs ts p) (\_ _ _ -> 1.0)
                     , (5, 2)
                     , (6, 2)
                     ]
+        coreMapping = M.fromList $ zip [1..9] [Location r c | r <- [1..3], c <- [1..3]]
         p = Platform 1.0 1.0 1.0
+        d = Domain cs ts p
+        fnf d pm tm = fromIntegral $ missingDeadlines p 1.0 (Application cs ts (M.fromList tm) coreMapping (M.fromList pm))

@@ -102,7 +102,7 @@ analysisR i@(endToEnds, rts, _, dis, bls) indirectTasks t previousTime
             interference task = ((previousTime + fromJust (fetch rts task) + interferenceJitter task)
                                 / tPeriod task)
                                 * fetch bls task
-            currentTime = debugOut $ fetch bls t + sum (map interference taskDi)
+            currentTime = fetch bls t + sum (map interference taskDi)
 
 analysis :: Intermediates -> Task -> CResponseTime
 analysis i@(endToEnds, rts, _, dis, _) t
