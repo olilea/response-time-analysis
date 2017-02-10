@@ -9,6 +9,9 @@ import System.Random
 import Analysis
 import Coevolve
 
+-- TODO: Add functions to generate task sets
+-- TODO: Implement breakpoint frequency function
+
 main :: IO ()
 main = do
   let mappings = runGA g ep d fnf
