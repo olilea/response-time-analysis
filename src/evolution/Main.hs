@@ -35,6 +35,15 @@ data EvolutionParameters = EvolutionParameters {
 pick :: (MonadRandom m) => [a] -> m a
 pick as = (!!) as <$> getRandomR (0, (length as) - 1)
 
+-- Choosing representatives
+
+-- Take the best individual as the representative in the next population
+represent :: ([(PMap, Fitness)], [(TMap, Fitness)])
+          -> (PMap, TMap)
+represent (ps, ts) = (extr ps, extr ts)
+  where
+    extr = fst . head
+
 -- Mutation
 
 swapMutate :: (MonadRandom m, Eq a)
@@ -148,31 +157,40 @@ runGA :: (RandomGen g)
 runGA g ep d@(Domain cs ts p) fnf = evalRand run g
   where
     run = do
-        pop <- zeroGen ep d fnf
-        runGA' ep d fnf pop 0
+        initialPop <- zeroGen popSize d fnf
+        runGA' ep d fnf initialPop 0
+    popSize = ePopulationSize ep
 
 
 -- Create an initial population and assign them each a fitness.
 -- This fitness is the result of a random pairing across the
 -- subpopulations.
+-- This fitness is required in order to provide the respresentatives
+-- for the initial population
 zeroGen :: (MonadRandom m)
-        => EvolutionParameters
+        => Int
         -> Domain
         -> (Domain -> PMap -> TMap -> Float)
         -> m ([(PMap, Fitness)], [(TMap, Fitness)])
-zeroGen ep@(EvolutionParameters popSize _ _ _) d@(Domain cs ts _) fnf = do
+zeroGen popSize d@(Domain cs ts _) fnf = do
   (ps, ms) <- genPopulation popSize (length cs) (length ts)
   (,) <$> initialPriorityFitness d fnf (ps, ms)
       <*> initialTaskMapFitness d fnf (ps, ms)
 
--- Take the best individual as the representative in the next population
-represent :: ([(PMap, Fitness)], [(TMap, Fitness)])
-          -> (PMap, TMap)
-represent (ps, ts) = (extr ps, extr ts)
-  where
-    extr = fst . head
-
--- The recursive part of the GA
+-- The recursive part of the GA.
+--
+-- Firstly, select from the population.
+--
+-- Produce variation in the population through use of crossover and
+-- mutation operatiions:
+-- Crossover involves selecting two random individuals and a
+-- random number from 0-1. If this number is <= the crossover rate
+-- then apply the operator. Repeat until enough for next generation.
+-- Mutation involves selecting a number from 0-1. If this number <= the
+-- mutation rate then mutate that individual.
+--
+-- Then calculate the fitness of each of the individuals in the new
+-- population by combining them with the given represntatives.
 runGA' :: (MonadRandom m)
           => EvolutionParameters
           -> Domain
@@ -183,8 +201,10 @@ runGA' :: (MonadRandom m)
 runGA' ep@(EvolutionParameters gens _ cxPb mtPb) d fnf pop@(ps, ms) genNumber
   | genNumber == gens = return ((fst . head) ps, (fst . head) ms)
   | otherwise = do
-      pop' <- evolve (cxPb, mtPb) d fnf (represent pop) pop
+      pop' <- evolve (cxPb, mtPb) d fnf representatives pop
       runGA' ep d fnf pop (genNumber + 1)
+        where
+          representatives = represent pop
 
 -- Evolve a population into the next generation using the provided
 -- fitness function and parameters
@@ -195,7 +215,7 @@ evolve :: (MonadRandom m)
        -> (PMap, TMap)
        -> ([(PMap, Fitness)], [(TMap, Fitness)])
        -> m ([(PMap, Fitness)], [(TMap, Fitness)])
-evolve pbs d fnf repr pop@(ps, ms) = return pop
+evolve pbs d fnf repr pop@(ps, ms) = undefined
 
 vary :: (MonadRandom m)
      => (Float, Float)
