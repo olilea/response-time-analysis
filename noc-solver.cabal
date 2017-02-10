@@ -1,4 +1,4 @@
-name:                noc-analysis
+name:                noc-solver
 version:             0.1.0.0
 synopsis:            Simple project template from stack
 description:         Please see README.md
@@ -11,33 +11,35 @@ build-type:          Simple
 cabal-version:       >=1.10
 extra-source-files:  README.md
 
-executable coevolve
+executable solver
+  hs-source-dirs:      src/solver
+  main-is:             Main.hs
   default-language:    Haskell2010
   build-depends:       base >= 4.7 && < 5
                        , containers
                        , random
                        , MonadRandom
-                       , noc-analysis
+                       , noc-solver
                        , random-shuffle
                        , random-extras
-  main-is:             Main.hs
-  hs-source-dirs:      src/evolution
-  extensions:          BangPatterns
   ghc-options:         -O2 -threaded -rtsopts -with-rtsopts=-N
+  extensions:          BangPatterns
 
 library
-  hs-source-dirs:      src/analysis
-  exposed-modules:     Analysis, Analysis.Internal
+  default-language:    Haskell2010
+  hs-source-dirs:      src/lib
+  exposed-modules:     Coevolve, Analysis, Analysis.Internal
   other-modules:       Analysis.Internal.CommunicationAnalysis
                        , Analysis.Internal.ResponseTimeAnalysis
                        , Analysis.Internal.Structures
                        , Analysis.Internal.Utils
-  default-language:    Haskell2010
   build-depends:       base >= 4.7 && < 5
                        , containers
                        , random
                        , MonadRandom
-                       
+                       , random-shuffle
+                       , random-extras
+  extensions:          BangPatterns
 
 test-suite tests
   default-language:    Haskell2010
