@@ -15,6 +15,8 @@ import Data.Maybe
 import Data.List
 import qualified Data.Set as S
 
+import Debug.Trace
+
 -- Distinguish between communication and computation response times
 type CResponseTime = ResponseTime
 type TResponseTime = ResponseTime
@@ -82,7 +84,7 @@ basicNetworkLatency (Platform fs ld rd) t hops
     | otherwise = linkDelays + routerDelays + otherFlitLinkDelays
         where
             links = fromIntegral hops
-            routers = fromIntegral hops - 1
+            routers = fromIntegral $ hops - 1
             linkDelays = links * ld
             routerDelays = routers * rd
             flits :: Float
@@ -122,7 +124,7 @@ analysis i@(endToEnds, rts, _, dis, _) t
                      -- Interferences for all tasks that interefere with T
                      . M.filterWithKey (\task _ -> elem task taskDi)
                      $ dis
-        
+
 communicationAnalysisR :: [Task] -> Intermediates -> M.Map Task CResponseTime
 communicationAnalysisR [] (e2es, _, _, _, _) = e2es
 communicationAnalysisR (cur:remain) i = communicationAnalysisR remain nextI
@@ -133,7 +135,9 @@ communicationAnalysisR (cur:remain) i = communicationAnalysisR remain nextI
         nextI = (newTimes, responseTimes, trafficFlows, dInterferences, latencies)
 
 scalePlatform :: Platform -> ScaleFactor -> Platform
-scalePlatform (Platform fs ld rd) sf = Platform fs (ld * sf) (rd * sf)
+scalePlatform (Platform fs ld rd) sf = Platform fs (ld * inverse) (rd * inverse)
+  where
+    inverse = 1.0 / sf
 
 -- Should be returning EndToEndResponseTimes
 communicationAnalysis :: Platform 

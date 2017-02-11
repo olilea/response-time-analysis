@@ -23,7 +23,7 @@ executable solver
                        , random-shuffle
                        , random-extras
   ghc-options:         -O2 -threaded -rtsopts -with-rtsopts=-N
-  extensions:          BangPatterns
+  extensions:          BangPatterns, ScopedTypeVariables
 
 library
   default-language:    Haskell2010
@@ -53,4 +53,4 @@ test-suite tests
     , containers  
     , tasty
     , tasty-hunit
-    , noc-analysis
+    , noc-solver

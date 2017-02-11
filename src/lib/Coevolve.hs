@@ -35,7 +35,6 @@ data EvolutionParameters = EvolutionParameters {
     eGenerations :: Int,
     ePopulationSize :: Int,
     eTournamentSize :: Int,
-    eSelectCount :: Int,
     eCrossoverRate :: Float,
     eMutationRate :: Float
 }
@@ -160,7 +159,7 @@ fixPriorities ps = case ps of
 
 genTaskMapping :: (MonadRandom m) => Int -> Int -> m [(Int, Int)]
 genTaskMapping ts cs = do
-  mappedCores <- replicateM cs (getRandomR (1, 9))
+  mappedCores <- replicateM ts (getRandomR (1, cs))
   return $ zip [1..ts] mappedCores
 
 genPriorityMapping :: (MonadRandom m) => Int -> m [(Int, Int)]
@@ -236,7 +235,7 @@ zeroGen :: (MonadRandom m)
         -> (Domain -> PMap -> TMap -> Float)
         -> m ([(PMap, Fitness)], [(TMap, Fitness)])
 zeroGen popSize d@(Domain cs ts _) fnf = do
-  (ps, ms) <- genPopulation popSize (length cs) (length ts)
+  (!ps, ms) <- genPopulation popSize (length cs) (length ts)
   (,) <$> initialPriorityFitness d fnf (ps, ms)
       <*> initialTaskMapFitness d fnf (ps, ms)
 
@@ -261,13 +260,15 @@ runGA' :: (MonadRandom m)
           -> ([(PMap, Fitness)], [(TMap, Fitness)])
           -> Int
           -> m (PMap, TMap)
-runGA' ep@(EvolutionParameters gens _ _ _ cxPb mtPb) dom fnf pop@(ps, ts) genNumber
-  | genNumber == gens = return ((fst . head) ps, (fst . head) ts)
+runGA' ep@(EvolutionParameters gens _ _ cxPb mtPb) dom fnf pop@(ps, ts) genNumber
+  | genNumber == gens = return (bestPm, (fst . head . sortBy (comparing snd))ts)
   | otherwise = do
-      pop' <- evolve ep dom fnf representatives pop
+      pop' <- traceShow (((snd . head)  ps, (snd . head) ts)) $ evolve ep dom fnf representatives pop
       runGA' ep dom fnf pop' (genNumber + 1)
-        where
-          representatives = represent pop
+    where
+      representatives = represent pop
+      bestPm = fst . head $ ps
+      comparedTms = map (\tm -> fnf bestPm (fst tm)) ts
 
 -- Evolve a population into the next generation using the provided
 -- fitness function and parameters
@@ -284,14 +285,14 @@ evolve ep dom fnf reps pop@(ps, ts) = do
   offspringPs <- (++) selectedPs <$> offspring priorityCrossover selectedPs
   offspringTs <- (++) selectedTs <$> offspring mappingCrossover selectedTs
   newGenPs <- mapM (mutate mtPb swapMutate) offspringPs
-  newGenTs <- mapM (mutate mtPb (flipMutate (1, length cs))) offspringTs
+  newGenTs <- mapM (mutate mtPb (flipMutate (1, length cs)))  offspringTs
   return $ evaluateFitness fnf reps (newGenPs, newGenTs)
     where
-      (EvolutionParameters _ popSize tournSize selectCount cxPb mtPb) = ep
+      (EvolutionParameters _ popSize tournSize cxPb mtPb) = ep
       (Domain cs _ _) = dom
       pOrig = map fst ps
       mOrig = map fst ts
-      select xs = replicateM selectCount (tournament tournSize xs)
+      select xs = replicateM (ceiling (fromIntegral popSize * cxPb)) (tournament tournSize xs)
       offspring cxF subpop = replicateM (popSize - (length subpop)) (reproduce cxF subpop)
 
 mutate :: (MonadRandom m)
@@ -301,7 +302,7 @@ mutate :: (MonadRandom m)
        -> m [(Int, Int)]
 mutate mtPb mutation ind = do
   r <- getRandomR (0.0, 1.0)
-  if r <= mtPb
+  if r > mtPb
     then return ind
     else do
       mutated <- mutation values

@@ -52,4 +52,4 @@ responseTimes pm ts = responseTimesR remaining rts
         rts = M.singleton highest $ responseTimeSingle highest M.empty
 
 responseTimeAnalysis :: [Task] -> PriorityMapping -> Core -> ScaleFactor -> ResponseMap
-responseTimeAnalysis ts pm c sf = responseTimes pm . map (scale sf . scale (1.0 / cSpeed c)) $ ts
+responseTimeAnalysis ts pm c sf = responseTimes pm . map (scale (1.0 / (cSpeed c * sf))) $ ts
