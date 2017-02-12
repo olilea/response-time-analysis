@@ -53,14 +53,18 @@ represent (ps, ts) = (extr ps, extr ts)
 
 -- Selection
 
--- Randomly select individuals from the given population
+-- Randomly select individuals from the given population to take
+-- part in a tournament. If more than one have the same fitness, return
+-- a random one.
 tournament :: (MonadRandom m)
            => Int
            -> [(a, Float)]
            -> m a
 tournament size xs = do
   competitors <- replicateM size (pick xs)
-  return . fst . head . sortBy (comparing snd) $ competitors
+  let s = sortBy (comparing snd) competitors
+  let top = takeWhile (\(a, fitness) -> fitness == (snd . head) s) s
+  fst <$> pick top
 
 -- Mutation
 
@@ -69,7 +73,7 @@ swapMutate :: (MonadRandom m, Eq a)
            => [a]
            -> m [a]
 swapMutate as = do
-  rs <- take 2 <$> getRandomRs (0, (length as) - 1)
+  rs <- take 2 . nub <$> getRandomRs (0, (length as) - 1)
   let mapping1 = as !! (rs !! 0)
   let mapping2 = as !! (rs !! 1)
   let swap x
@@ -84,7 +88,7 @@ flipMutate :: (MonadRandom m)
            -> m [Int]
 flipMutate range@(low, high) as = do
   chosen <- pick as
-  newVal <- pick [low..high]
+  newVal <- pick [i | i <- [low..high], i /= chosen]
   let flipper = \x -> case () of
         _ | x == chosen -> newVal
           | otherwise -> x
@@ -109,6 +113,12 @@ singlePointCrossover l r = do
     cxPoint <- getRandomR (1, (length l) - 1)
     return $ (take cxPoint l) ++ (drop cxPoint r)
 
+uniformCrossover :: (MonadRandom m)
+                 => [a]
+                 -> [a]
+                 -> m [a]
+uniformCrossover ls rs = sequence . map (\(l, r) -> pick [l, r]) $ zip ls rs
+
 mappingCrossover :: (MonadRandom m)
                  => TMap
                  -> TMap
@@ -116,7 +126,7 @@ mappingCrossover :: (MonadRandom m)
 mappingCrossover l r = do
   let sortL = sortBy (comparing fst) l
   let sortR = sortBy (comparing fst) r
-  crossedCs <- singlePointCrossover (map snd l) (map snd r)
+  crossedCs <- uniformCrossover (map snd sortL) (map snd sortR)
   return $ zip (map fst sortL) crossedCs
 
 -- It must be the case that if two tasks share a priority then
@@ -135,8 +145,8 @@ priorityCrossover :: (MonadRandom m)
 priorityCrossover l r = do
   let sortL = sortBy (comparing fst) l
   let sortR = sortBy (comparing fst) r
-  crossedPs <- singlePointCrossover (map snd l) (map snd r)
-  combined <- mapM id $ fixPriorities $ sortBy (comparing snd) . zip (map fst sortL) $ crossedPs
+  crossedPs <- uniformCrossover (map snd sortL) (map snd sortR)
+  combined <- sequence . fixPriorities . sortBy (comparing snd) . zip (map fst sortL) $ crossedPs
   return $ normalize combined
     where
       normalize ps = map (\(t, p) -> (t, p - highestPriority + 1)) sps
@@ -149,11 +159,12 @@ fixPriorities ps = case ps of
   (a:[]) -> [return a]
   (a@(at, ap):b@(bt, bp):rem) -> if ap /= bp
     then let diff = abs (ap - bp) in
+      if bp < ap then (return a):(fixPriorities ((bt, bp + 2):rem)) else
       if diff > 1
         then (return a):(fixPriorities ((bt, bp - diff + 1):rem))
         else (return a):(fixPriorities (b:rem))
     else do
-      (return a):(fixPriorities ((bt, bp + 1):rem))
+      (return b):(fixPriorities ((at, ap + 1):rem))
 
 -- Generating the initial population
 
@@ -283,16 +294,17 @@ evolve ep dom fnf reps pop@(ps, ts) = do
   selectedPs <- select ps
   selectedTs <- select ts
   offspringPs <- (++) selectedPs <$> offspring priorityCrossover selectedPs
+  -- let offspringPs = map fst ps
   offspringTs <- (++) selectedTs <$> offspring mappingCrossover selectedTs
   newGenPs <- mapM (mutate mtPb swapMutate) offspringPs
-  newGenTs <- mapM (mutate mtPb (flipMutate (1, length cs)))  offspringTs
+  newGenTs <- mapM (mutate mtPb (flipMutate (1, length cs))) offspringTs
   return $ evaluateFitness fnf reps (newGenPs, newGenTs)
     where
       (EvolutionParameters _ popSize tournSize cxPb mtPb) = ep
       (Domain cs _ _) = dom
       pOrig = map fst ps
       mOrig = map fst ts
-      select xs = replicateM (ceiling (fromIntegral popSize * cxPb)) (tournament tournSize xs)
+      select xs = replicateM (ceiling (fromIntegral popSize * (1.0 - cxPb))) (tournament tournSize xs)
       offspring cxF subpop = replicateM (popSize - (length subpop)) (reproduce cxF subpop)
 
 mutate :: (MonadRandom m)
