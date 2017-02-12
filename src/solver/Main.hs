@@ -73,13 +73,9 @@ extractArguments = do
     (nocSize:maxUtil:taskSetUtil:[]) ->
       return $ (read nocSize :: Int, read maxUtil :: Float, read taskSetUtil :: Float)
 
--- TODO: Need to work out why some things have the same priority.
 -- TODO: Should add a hall of fame and elitism
--- TODO: Why do the priority mappings end up looking like that task Id should be the priority?
--- Basically, fix the priority operators
--- TODO: Fix BF function - if on the last scaling it finds it misses a deadline, it will
---   return a Nothing, even though it might have been succeeding below the 1.0 mark.
---   Basically should be returning the last successful scale.
+-- TODO: Increase diversity in population and stop it converging on
+--   local minima
 main :: IO ()
 main = do
   g <- getStdGen
