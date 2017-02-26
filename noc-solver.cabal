@@ -39,6 +39,7 @@ library
                        , MonadRandom
                        , random-shuffle
                        , random-extras
+                       , parallel
   extensions:          BangPatterns
 
 test-suite tests

@@ -89,10 +89,6 @@ main = do
 
   let end d pm tm = endToEnd p (Application cs ts (M.fromList tm) coreMapping (M.fromList pm)) sf
   let met d pm tm = fromIntegral $ missingDeadlines p (Application cs ts (M.fromList tm) coreMapping (M.fromList pm)) sf
-  -- let bdf d pm tm = let r = breakdownFrequency p (Application cs ts (M.fromList tm) coreMapping (M.fromList pm)) 20 in
-  --       case r of
-  --         Nothing -> ((met d pm tm) + 1) * 10.0 -- Fix this line (see fix BF todo)
-  --         Just s -> s
   let bdf d pm tm = let bFreq = bdf2 p (Application cs ts (M.fromList tm) coreMapping (M.fromList pm)) in
         case bFreq of
           Nothing -> 1000.0
@@ -105,7 +101,7 @@ main = do
   putStrLn . show $ met d (fst mappings) (snd mappings)
   putStrLn . show $ end d (fst mappings) (snd mappings)
     where
-        ep = EvolutionParameters 100 50 2 0.7 0.05
+        ep = EvolutionParameters 20 200 3 0.7 0.1 5
         sf = 1.0
         p = Platform 1.0 1.0 1.0
 

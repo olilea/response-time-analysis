@@ -9,6 +9,7 @@ import Analysis
 
 import Control.Monad
 import Control.Monad.Random
+import Control.Parallel.Strategies
 
 import Data.List
 import Data.Maybe
@@ -20,14 +21,15 @@ import System.Random.Shuffle
 
 import Debug.Trace
 
-
 type Fitness = Float
 
 -- Maps task ID to priority
-type PMap = [(Int, Int)]
+type PMap = [(TaskId, TaskPriority)]
 
 -- Maps task ID to core ID
-type TMap = [(Int, Int)]
+type TMap = [(TaskId, CoreId)]
+
+data HallOfFame = HallOfFame PMap TMap Fitness
 
 data Domain = Domain [Core] [Task] Platform
 
@@ -36,7 +38,8 @@ data EvolutionParameters = EvolutionParameters {
     ePopulationSize :: Int,
     eTournamentSize :: Int,
     eCrossoverRate :: Float,
-    eMutationRate :: Float
+    eMutationRate :: Float,
+    eRepPoolSize :: Int
 }
 
 pick :: (MonadRandom m) => [a] -> m a
@@ -44,12 +47,16 @@ pick as = (!!) as <$> getRandomR (0, (length as) - 1)
 
 -- Choosing representatives
 
--- Take the best individual as the representative in the next population
-represent :: ([(PMap, Fitness)], [(TMap, Fitness)])
-          -> (PMap, TMap)
-represent (ps, ts) = (extr ps, extr ts)
+represent :: (MonadRandom m)
+          => Int
+          -> [(a, Fitness)]
+          -> m [a]
+represent poolSize xs = do
+  rs <- replicateM (poolSize - 1) (pick inds)
+  return $ best:rs
   where
-    extr = fst . head
+    inds = map fst xs
+    best = fst . head . sortBy (comparing snd) $ xs
 
 -- Selection
 
@@ -149,10 +156,11 @@ priorityCrossover l r = do
   combined <- sequence . fixPriorities . sortBy (comparing snd) . zip (map fst sortL) $ crossedPs
   return $ normalize combined
     where
-      normalize ps = map (\(t, p) -> (t, p - highestPriority + 1)) sps
+      normalize ps = sortBy (comparing fst) normalized
         where
           sps = sortBy (comparing snd) ps
           highestPriority = snd . head $ sps
+          normalized = map (\(t, p) -> (t, p - highestPriority + 1)) sps
 
 fixPriorities :: (MonadRandom m) => [(Int, Int)] -> [m (Int, Int)]
 fixPriorities ps = case ps of
@@ -179,6 +187,7 @@ genPriorityMapping ts = do
   let tasks = [1..ts]
   return $ zip tasks priorities
 
+-- Generate random priority mappings and task mappings
 genPopulation :: (MonadRandom m)
                => Int
                -> Int
@@ -196,7 +205,7 @@ initialPriorityFitness :: (MonadRandom m)
                        => Domain
                        -> (Domain -> PMap -> TMap -> Float)
                        -> ([PMap], [TMap])
-                       -> m [(PMap, Float)]
+                       -> m [(PMap, Fitness)]
 initialPriorityFitness d@(Domain cs ts _) fnf (ps, ms) = do
   mPicks <- replicateM (length ms) (pick ms)
   -- Take a [PMap] and produce a [(Priorities, Fitness)], sorted
@@ -267,40 +276,43 @@ zeroGen popSize d@(Domain cs ts _) fnf = do
 runGA' :: (MonadRandom m)
           => EvolutionParameters
           -> Domain
-          -> (PMap -> TMap -> Float)
+          -> (PMap -> TMap -> Fitness)
           -> ([(PMap, Fitness)], [(TMap, Fitness)])
           -> Int
           -> m (PMap, TMap)
-runGA' ep@(EvolutionParameters gens _ _ cxPb mtPb) dom fnf pop@(ps, ts) genNumber
-  | genNumber == gens = return (bestPm, (fst . head . sortBy (comparing snd))ts)
+runGA' ep@(EvolutionParameters gens _ _ cxPb mtPb poolSize) dom fnf pop@(ps, ts) genNumber
+  | genNumber == gens = traceShow ts $ return (bestPm, (fst . head . sortBy (comparing snd)) comparedTms)
   | otherwise = do
-      pop' <- traceShow (((snd . head)  ps, (snd . head) ts)) $ evolve ep dom fnf representatives pop
-      runGA' ep dom fnf pop' (genNumber + 1)
+      pReps <- represent poolSize ps
+      tReps <- represent poolSize ts
+      (ps', ts') <- evolve ep dom fnf (pReps, tReps) pop
+      let pop' = (sortBy (comparing snd) ps', sortBy (comparing snd) ts')
+      traceShow (((snd . head . fst)) pop', (snd . head . snd) pop') $ runGA' ep dom fnf pop' (genNumber + 1)
     where
-      representatives = represent pop
-      bestPm = fst . head $ ps
-      comparedTms = map (\tm -> fnf bestPm (fst tm)) ts
+      bestPm = fst . head $ sortBy (comparing snd) ps
+      comparedTms = map (\(tm, _) -> (tm, fnf bestPm tm)) ts
 
 -- Evolve a population into the next generation using the provided
 -- fitness function and parameters
 evolve :: (MonadRandom m)
        => EvolutionParameters
        -> Domain
-       -> (PMap -> TMap -> Float)
-       -> (PMap, TMap)
+       -> (PMap -> TMap -> Fitness)
+       -> ([PMap], [TMap])
        -> ([(PMap, Fitness)], [(TMap, Fitness)])
        -> m ([(PMap, Fitness)], [(TMap, Fitness)])
-evolve ep dom fnf reps pop@(ps, ts) = do
+evolve ep dom fnf reps@(pReps, tReps) pop@(ps, ts) = do
   selectedPs <- select ps
   selectedTs <- select ts
   offspringPs <- (++) selectedPs <$> offspring priorityCrossover selectedPs
-  -- let offspringPs = map fst ps
   offspringTs <- (++) selectedTs <$> offspring mappingCrossover selectedTs
   newGenPs <- mapM (mutate mtPb swapMutate) offspringPs
   newGenTs <- mapM (mutate mtPb (flipMutate (1, length cs))) offspringTs
-  return $ evaluateFitness fnf reps (newGenPs, newGenTs)
+  let tFits = map (evalFitness fnf pReps) newGenTs `using` parList rdeepseq
+  let pFits = map (evalFitness (flip fnf) tReps) newGenPs `using` parList rdeepseq
+  return $ (pFits, tFits)
     where
-      (EvolutionParameters _ popSize tournSize cxPb mtPb) = ep
+      (EvolutionParameters _ popSize tournSize cxPb mtPb _) = ep
       (Domain cs _ _) = dom
       pOrig = map fst ps
       mOrig = map fst ts
@@ -323,12 +335,11 @@ mutate mtPb mutation ind = do
           subject = map fst ind
           values = map snd ind
 
-evaluateFitness :: (PMap -> TMap -> Float)
-                -> (PMap, TMap)
-                -> ([PMap], [TMap])
-                -> ([(PMap, Float)], [(TMap, Float)])
-evaluateFitness fnf (pRep, mRep) (ps, ts) = (pFit, tFit)
+evalFitness :: (a -> b -> Fitness)
+            -> [a]
+            -> b
+            -> (b, Fitness)
+evalFitness fnf reps x = head . sortBy (comparing snd) $ fs
   where
-    pFit = map (\p -> (p, fnf p mRep)) ps
-    tFit = map (\m -> (m, fnf pRep m)) ts
+    fs = map (\r -> (x, fnf r x)) reps
 
