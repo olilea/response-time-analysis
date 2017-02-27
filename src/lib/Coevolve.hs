@@ -29,7 +29,7 @@ type PMap = [(TaskId, TaskPriority)]
 -- Maps task ID to core ID
 type TMap = [(TaskId, CoreId)]
 
-data HallOfFame = HallOfFame PMap TMap Fitness
+type HallOfFame = (PMap, TMap, Fitness)
 
 data Domain = Domain [Core] [Task] Platform
 
@@ -44,6 +44,9 @@ data EvolutionParameters = EvolutionParameters {
 
 pick :: (MonadRandom m) => [a] -> m a
 pick as = (!!) as <$> getRandomR (0, (length as) - 1)
+
+third :: (a, b, c) -> c
+third (_, _, x) = x
 
 -- Choosing representatives
 
@@ -104,9 +107,9 @@ flipMutate range@(low, high) as = do
 -- Crossover
 
 reproduce :: (MonadRandom m)
-           => ([(a, a)] -> [(a, a)] -> m [(a, a)])
-           -> [[(a, a)]]
-           -> m [(a, a)]
+           => (a -> a -> m a)
+           -> [a]
+           -> m a
 reproduce crossoverF population = do
   l <- pick population
   r <- pick population
@@ -134,7 +137,7 @@ mappingCrossover l r = do
   let sortL = sortBy (comparing fst) l
   let sortR = sortBy (comparing fst) r
   crossedCs <- uniformCrossover (map snd sortL) (map snd sortR)
-  return $ zip (map fst sortL) crossedCs
+  return . zip (map fst sortL) $ crossedCs
 
 -- It must be the case that if two tasks share a priority then
 -- there is a priority that has not been assigned to.
@@ -154,7 +157,7 @@ priorityCrossover l r = do
   let sortR = sortBy (comparing fst) r
   crossedPs <- uniformCrossover (map snd sortL) (map snd sortR)
   combined <- sequence . fixPriorities . sortBy (comparing snd) . zip (map fst sortL) $ crossedPs
-  return $ normalize combined
+  return . normalize $ combined
     where
       normalize ps = sortBy (comparing fst) normalized
         where
@@ -240,8 +243,14 @@ runGA g ep d@(Domain cs ts p) fnf = evalRand run g
   where
     run = do
         initialPop <- zeroGen popSize d fnf
-        runGA' ep d (fnf d) initialPop 0
+        let bestPm = getBest . fst $ initialPop
+        let bestTm = getBest . snd $ initialPop
+        let initialHof = (bestPm, bestTm, reducedFnf bestPm bestTm)
+        finalHof@(pm, tm, f) <- runGA' ep d reducedFnf initialHof initialPop 0
+        return (pm, tm)
     popSize = ePopulationSize ep
+    getBest = fst . head . sortBy (comparing snd)
+    reducedFnf = fnf d
 
 
 -- Create an initial population and assign them each a fitness.
@@ -277,17 +286,18 @@ runGA' :: (MonadRandom m)
           => EvolutionParameters
           -> Domain
           -> (PMap -> TMap -> Fitness)
+          -> HallOfFame
           -> ([(PMap, Fitness)], [(TMap, Fitness)])
           -> Int
-          -> m (PMap, TMap)
-runGA' ep@(EvolutionParameters gens _ _ cxPb mtPb poolSize) dom fnf pop@(ps, ts) genNumber
-  | genNumber == gens = traceShow ts $ return (bestPm, (fst . head . sortBy (comparing snd)) comparedTms)
+          -> m HallOfFame
+runGA' ep@(EvolutionParameters gens _ _ cxPb mtPb poolSize) dom fnf hof pop@(ps, ts) genNumber
+  | genNumber == gens = traceShow ts $ return hof
   | otherwise = do
       pReps <- represent poolSize ps
       tReps <- represent poolSize ts
-      (ps', ts') <- evolve ep dom fnf (pReps, tReps) pop
+      (ps', ts', hof') <- evolve ep dom fnf hof (pReps, tReps) pop
       let pop' = (sortBy (comparing snd) ps', sortBy (comparing snd) ts')
-      traceShow (((snd . head . fst)) pop', (snd . head . snd) pop') $ runGA' ep dom fnf pop' (genNumber + 1)
+      traceShow (third hof') $ runGA' ep dom fnf hof' pop' (genNumber + 1)
     where
       bestPm = fst . head $ sortBy (comparing snd) ps
       comparedTms = map (\(tm, _) -> (tm, fnf bestPm tm)) ts
@@ -298,19 +308,24 @@ evolve :: (MonadRandom m)
        => EvolutionParameters
        -> Domain
        -> (PMap -> TMap -> Fitness)
+       -> HallOfFame
        -> ([PMap], [TMap])
        -> ([(PMap, Fitness)], [(TMap, Fitness)])
-       -> m ([(PMap, Fitness)], [(TMap, Fitness)])
-evolve ep dom fnf reps@(pReps, tReps) pop@(ps, ts) = do
+       -> m ([(PMap, Fitness)], [(TMap, Fitness)], HallOfFame)
+evolve ep dom fnf hof@(hofPm, hofTm, hofFit) reps@(pReps, tReps) pop@(ps, ts) = do
   selectedPs <- select ps
   selectedTs <- select ts
   offspringPs <- (++) selectedPs <$> offspring priorityCrossover selectedPs
   offspringTs <- (++) selectedTs <$> offspring mappingCrossover selectedTs
   newGenPs <- mapM (mutate mtPb swapMutate) offspringPs
   newGenTs <- mapM (mutate mtPb (flipMutate (1, length cs))) offspringTs
-  let tFits = map (evalFitness fnf pReps) newGenTs `using` parList rdeepseq
-  let pFits = map (evalFitness (flip fnf) tReps) newGenPs `using` parList rdeepseq
-  return $ (pFits, tFits)
+  let tFits = map (evalMappingFitness fnf pReps) newGenTs `using` parList rdeepseq
+  let pFits = map (evalPriorityFitness fnf tReps) newGenPs `using` parList rdeepseq
+  let curBest@(curPm, curTm, curFit) = head . sortBy (comparing third) $ tFits ++ pFits
+  let hof' = if curFit < hofFit then (curPm, curTm, curFit) else hof
+  return $ (map (\(x, _, f) -> (x, f)) pFits
+           , map (\(_, y, f) -> (y, f)) tFits
+           , hof')
     where
       (EvolutionParameters _ popSize tournSize cxPb mtPb _) = ep
       (Domain cs _ _) = dom
@@ -335,11 +350,19 @@ mutate mtPb mutation ind = do
           subject = map fst ind
           values = map snd ind
 
-evalFitness :: (a -> b -> Fitness)
-            -> [a]
-            -> b
-            -> (b, Fitness)
-evalFitness fnf reps x = head . sortBy (comparing snd) $ fs
+evalPriorityFitness :: (PMap -> TMap -> Fitness)
+                    -> [TMap]
+                    -> PMap
+                    -> (PMap, TMap, Fitness)
+evalPriorityFitness fnf reps pmap = head . sortBy (comparing third) $ rs
   where
-    fs = map (\r -> (x, fnf r x)) reps
+    rs = map (\r -> (pmap, r, fnf pmap r)) reps
+
+evalMappingFitness :: (PMap -> TMap -> Fitness)
+                   -> [PMap]
+                   -> TMap
+                   -> (PMap, TMap, Fitness)
+evalMappingFitness fnf reps tmap = head . sortBy (comparing third) $ rs
+  where
+    rs = map (\r -> (r, tmap, fnf r tmap)) reps
 

@@ -101,7 +101,7 @@ main = do
   putStrLn . show $ met d (fst mappings) (snd mappings)
   putStrLn . show $ end d (fst mappings) (snd mappings)
     where
-        ep = EvolutionParameters 20 200 3 0.7 0.1 5
+        ep = EvolutionParameters 40 100 2 0.7 0.1 10
         sf = 1.0
         p = Platform 1.0 1.0 1.0
 
