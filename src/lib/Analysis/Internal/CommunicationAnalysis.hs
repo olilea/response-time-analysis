@@ -93,7 +93,7 @@ basicNetworkLatency (Platform fs ld rd) t hops
 
 analysisR :: Intermediates -> S.Set Task -> Task -> Float -> CResponseTime
 analysisR i@(endToEnds, rts, _, dis, bls) indirectTasks t previousTime
-    | previousTime > tDeadline t = Nothing
+    | previousTime > (tDeadline t) * 2 = Nothing
     | previousTime == currentTime = Just currentTime
     | otherwise = analysisR i indirectTasks t currentTime
         where

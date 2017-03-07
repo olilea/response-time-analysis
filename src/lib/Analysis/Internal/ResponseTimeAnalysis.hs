@@ -17,7 +17,7 @@ scale sf t = t { tComputation = nComp }
 
 responseTimeSingleR :: Task -> ResponseMap -> Float -> ResponseTime
 responseTimeSingleR t rts pr
-    | pr > tDeadline t = Nothing
+    | pr > (tDeadline t) * 2 = Nothing
     | pr == r = Just r
     | otherwise = responseTimeSingleR t rts r
     where
@@ -28,14 +28,16 @@ responseTimeSingleR t rts pr
 
 responseTimeSingle :: Task -> ResponseMap -> ResponseTime
 responseTimeSingle t rts
-    | rts == M.empty = singleResponse
+    | rts == M.empty = highestPriorityResponse
     | failed = Nothing
     | otherwise = responseTimeSingleR t rts c
     where
-        -- Task of higher priority misses its deadline -> current task misses deadline
+        -- Higher priority task could not have a response-time calculated
+        -- means that this task will also not have a response-time calculated
         failed = isJust . find isNothing . M.elems $ rts
         c = tComputation t
-        singleResponse = if tComputation t > tDeadline t then Nothing else (Just . tComputation) t
+        -- Must be the highest priority task -> R = C
+        highestPriorityResponse = Just c
 
 responseTimesR :: [Task] -> ResponseMap -> ResponseMap
 responseTimesR [] rts = rts
