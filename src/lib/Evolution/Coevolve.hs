@@ -1,7 +1,8 @@
 
 module Evolution.Coevolve
   ( runCCGA
-  ) where
+  )
+where
 
 import Analysis
 
@@ -25,8 +26,6 @@ import Debug.Trace
 
 type HallOfFame = (PMap, TMap, Fitness)
 
-third :: (a, b, c) -> c
-third (_, _, x) = x
 
 -- Choosing representatives
 
@@ -91,20 +90,19 @@ runCCGA :: (RandomGen g)
          => g
          -> CCEvolutionParameters
          -> Domain
-         -> (Domain -> PMap -> TMap -> Float)
+         -> (PMap -> TMap -> Float)
          -> (PMap, TMap)
 runCCGA g ep d@(Domain cs ts p) fnf = evalRand run g
   where
     run = do
-        initialPop <- zeroGen popSize d reducedFnf
+        initialPop <- zeroGen popSize d fnf
         let bestPm = getBest . fst $ initialPop
         let bestTm = getBest . snd $ initialPop
-        let initialHof = (bestPm, bestTm, reducedFnf bestPm bestTm)
-        finalHof@(pm, tm, f) <- runCCGA' ep d reducedFnf initialHof initialPop 0
+        let initialHof = (bestPm, bestTm, fnf bestPm bestTm)
+        finalHof@(pm, tm, f) <- runCCGA' ep d fnf initialHof initialPop 0
         return (pm, tm)
     popSize = cePopulationSize ep
     getBest = fst . head . sortBy (comparing snd)
-    reducedFnf = fnf d
 
 
 -- Create an initial population and assign them each a fitness.

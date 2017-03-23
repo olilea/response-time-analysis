@@ -69,7 +69,7 @@ extractArguments :: IO Arguments
 extractArguments = do
   as <- getArgs
   case as of
-    [] -> error "Not NOC size or util given"
+    [] -> error "No NOC size or util given"
     (nocSize:maxUtil:taskSetUtil:[]) ->
       return $ (read nocSize :: Int, read maxUtil :: Float, read taskSetUtil :: Float)
 
@@ -94,14 +94,14 @@ main = do
           Nothing -> 1000.0
           Just f -> f
 
-  let mappings = runCCGA g ep d bdf
+  let mappings = runGA g ep d (bdf d)
 
   putStrLn . show $ mappings
   putStrLn . show $ bdf d (fst mappings) (snd mappings)
   putStrLn . show $ met d (fst mappings) (snd mappings)
   putStrLn . show $ end d (fst mappings) (snd mappings)
     where
-        ep = CCEvolutionParameters 40 100 2 0.7 0.1 10
+        ep = EvolutionParameters 300 100 2 0.7 0.01
         sf = 1.0
         p = Platform 1.0 1.0 1.0
 

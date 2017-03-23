@@ -1,6 +1,7 @@
 
 module Evolution.Internal.Utils
-  ( pick
+  ( third
+  , pick
   , tournament
   , flipMutate
   , swapMutate
@@ -23,6 +24,9 @@ import Data.Ord
 
 import System.Random.Shuffle
 
+
+third :: (a, b, c) -> c
+third (_, _, x) = x
 
 pick :: (MonadRandom m) => [a] -> m a
 pick as = (!!) as <$> getRandomR (0, (length as) - 1)
