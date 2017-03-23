@@ -13,7 +13,7 @@ import Control.Monad.Random
 import System.Random
 
 import Analysis
-import Coevolve
+import Evolution
 
 type MessageSize = Int
 
@@ -94,14 +94,14 @@ main = do
           Nothing -> 1000.0
           Just f -> f
 
-  let mappings = runGA g ep d bdf
+  let mappings = runCCGA g ep d bdf
 
   putStrLn . show $ mappings
   putStrLn . show $ bdf d (fst mappings) (snd mappings)
   putStrLn . show $ met d (fst mappings) (snd mappings)
   putStrLn . show $ end d (fst mappings) (snd mappings)
     where
-        ep = EvolutionParameters 40 100 2 0.7 0.1 10
+        ep = CCEvolutionParameters 40 100 2 0.7 0.1 10
         sf = 1.0
         p = Platform 1.0 1.0 1.0
 
