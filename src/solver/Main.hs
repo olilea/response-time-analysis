@@ -84,20 +84,10 @@ extractArguments = do
     (nocSize:maxUtil:taskSetUtil:[]) ->
       return $ (read nocSize :: Int, read maxUtil :: Float, read taskSetUtil :: Float)
 
--- TODO: Should add a hall of fame and elitism
--- TODO: Increase diversity in population and stop it converging on
---   local minima
-main :: IO ()
-main = do
-  g <- getStdGen
-  (nocSize, maxTaskUtil, taskSetUtil) <- extractArguments
-
+runs :: Int -> [Task] -> String -> IO ()
+runs nocSize ts dataset = do
   let cs = [Core idee 1.0 | idee <- [1..nocSize*nocSize]]
   let coreMapping = M.fromList $ zip [1..nocSize*nocSize] [Location r c | r <- [1..nocSize], c <- [1..nocSize]]
-  -- ts <- genTaskSet maxTaskUtil taskSetUtil
-
-  let ts = map (\((id, c, t), comm) -> (Task id (t * 1000000000) (t * 1000000000) (c * 1000000000) comm))
-        $ zip avaTs avaCs
   let d = Domain cs ts p
   putStrLn . show $ length ts
 
@@ -108,15 +98,27 @@ main = do
           Nothing -> 1000.0
           Just f -> f
 
-  mapM (\i -> gaRun d ep (bdf d) (met d) ("ga" ++ (show i))) [1..20]
-  --mapM (\i -> ccgaRun d cep (bdf d) (met d) ("ccga" ++ (show i))) [1..20]
-
+  mapM (\i -> gaRun d ep (bdf d) (met d) (show i)) [1..20]
+  mapM (\i -> ccgaRun d cep (bdf d) (met d)
+         (dataset ++ "_" ++ nocSizeS ++ "x" ++ nocSizeS ++ "_" ++ (show i)))
+    [1..20]
   return ()
     where
         ep = EvolutionParameters 100 100 2 0.7 0.01
         cep = CCEvolutionParameters 100 100 2 0.7 0.01 10
         sf = 1.0
         p = Platform 1.0 1.0 1.0
+        nocSizeS = show nocSize
+
+main :: IO ()
+main = do
+  g <- getStdGen
+  -- (nocSize, maxTaskUtil, taskSetUtil) <- extractArguments
+  -- ts <- genTaskSet maxTaskUtil taskSetUtil
+  let ts = map (\((id, c, t), comm) -> (Task id (t * 1000000000) (t * 1000000000) (c * 1000000000) comm))
+        $ zip avaTs avaCs
+  mapM (\i -> runs i ts "ava") [3..5]
+  return ()
 
 statsToCsv :: [Stat] -> String
 statsToCsv ss = unlines $ (:) header $ reverse (map statToCsv ss)
@@ -137,7 +139,7 @@ gaRun :: Domain
 gaRun d ep fnf schedf suffix = do
   g <- newStdGen
   let (mapping, stats) = runGA g ep d fnf schedf
-  writeFile ("data/ga_output_" ++ suffix ++ ".csv") $ statsToCsv stats
+  writeFile ("data/ga_" ++ suffix ++ ".csv") $ statsToCsv stats
 
 
 ccgaRun :: Domain
@@ -149,7 +151,7 @@ ccgaRun :: Domain
 ccgaRun d ep fnf schedf suffix = do
   g <- newStdGen
   let (mapping, stats) = runCCGA g ep d fnf schedf
-  writeFile ("data/ccga_output_" ++ suffix ++ ".csv") $ statsToCsv stats
+  writeFile ("data/ccga_" ++ suffix ++ ".csv") $ statsToCsv stats
 
 avaTs = [ (1, 0.005, 0.5)
         , (2, 0.005, 0.1)
