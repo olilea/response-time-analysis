@@ -48,13 +48,16 @@ runGA :: (RandomGen g)
       -> EvolutionParameters
       -> Domain
       -> FitnessF
-      -> Ind
-runGA g ep d fnf = evalRand run g
+      -> (PMap -> TMap -> Float)
+      -> (Ind, [Stat])
+runGA g ep d fnf schedf = evalRand run g
   where
     run = do
       initialPop <- zeroGen popSize d fnf
-      let initialHof = best initialPop
-      fst <$> runGA' ep d fnf initialHof initialPop 0
+      let initialHof@((ps, ts), fitness) = best initialPop
+      let stats = [(Stat 0 fitness (schedf ps ts))]
+      (((ps, ts), fit), stats') <- runGA' ep d fnf schedf initialHof initialPop stats 1
+      return ((ps, ts), stats')
     popSize = ePopulationSize ep
     best = head . sortBy (comparing snd)
 
@@ -62,16 +65,19 @@ runGA' :: (MonadRandom m)
        => EvolutionParameters
        -> Domain
        -> FitnessF
+       -> (PMap -> TMap -> Float)
        -> HallOfFame
        -> [FInd]
+       -> [Stat]
        -> Generation
-       -> m HallOfFame
-runGA' ep@(EvolutionParameters gens _ _ cxPb mtPb) dom fnf hof pop gen
-  | gen == gens = traceShow pop $ return hof
+       -> m (HallOfFame, [Stat])
+runGA' ep@(EvolutionParameters gens _ _ cxPb mtPb) dom fnf schedf hof pop stats gen
+  | gen > gens = return (hof, stats)
   | otherwise = do
-      (pop', hof') <- evolve ep dom fnf hof pop
+      (pop', hof'@((bestPs, bestTs), fitness)) <- evolve ep dom fnf hof pop
       let nextPop = sortBy (comparing snd) pop'
-      traceShow (snd hof') $ runGA' ep dom fnf hof' nextPop (succ gen)
+      let stats' = (Stat gen fitness (schedf bestPs bestTs)) : stats
+      traceShow (snd hof') $ runGA' ep dom fnf schedf hof' nextPop stats' (succ gen)
 
 evolve :: (MonadRandom m)
        => EvolutionParameters

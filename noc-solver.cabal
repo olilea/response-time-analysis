@@ -22,6 +22,8 @@ executable solver
                        , noc-solver
                        , random-shuffle
                        , random-extras
+                       , random-fu
+                       , rvar
   ghc-options:         -O2 -threaded -rtsopts -with-rtsopts=-N
   extensions:          BangPatterns, ScopedTypeVariables
 

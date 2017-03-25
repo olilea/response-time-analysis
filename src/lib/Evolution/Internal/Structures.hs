@@ -2,6 +2,7 @@
 module Evolution.Internal.Structures
   ( EvolutionParameters(..)
   , CCEvolutionParameters(..)
+  , Stat(..)
   , Domain(..)
   , Fitness
   , PMap
@@ -26,6 +27,12 @@ data CCEvolutionParameters = CCEvolutionParameters {
     ceMutationRate :: Float,
     ceRepPoolSize :: Int
 }
+
+data Stat = Stat {
+  sGeneration :: Int,
+  sFitness :: Float,
+  sSchedulability :: Float
+} deriving (Show)
 
 data Domain = Domain [Core] [Task] Platform
 

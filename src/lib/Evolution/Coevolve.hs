@@ -60,7 +60,7 @@ genPopulation popSize cs ts = do
 -- Match a priority mapping to a random task mapping
 -- in order to assign a fitness
 initialPriorityFitness :: (MonadRandom m)
-                       => (PMap -> TMap -> Float)
+                       => (PMap -> TMap -> Fitness)
                        -> ([PMap], [TMap])
                        -> m [(PMap, Fitness)]
 initialPriorityFitness fnf (ps, ms) = do
@@ -74,7 +74,7 @@ initialPriorityFitness fnf (ps, ms) = do
 -- Match a task mapping to a random priority mapping
 -- in order to assign a fitness
 initialTaskMapFitness :: (MonadRandom m)
-                      => (PMap -> TMap -> Float)
+                      => (PMap -> TMap -> Fitness)
                       -> ([PMap], [TMap])
                       -> m [(TMap, Float)]
 initialTaskMapFitness fnf (ps, ms) = do
@@ -90,17 +90,19 @@ runCCGA :: (RandomGen g)
          => g
          -> CCEvolutionParameters
          -> Domain
+         -> (PMap -> TMap -> Fitness)
          -> (PMap -> TMap -> Float)
-         -> (PMap, TMap)
-runCCGA g ep d@(Domain cs ts p) fnf = evalRand run g
+         -> ((PMap, TMap), [Stat])
+runCCGA g ep d@(Domain cs ts p) fnf schedf = evalRand run g
   where
     run = do
         initialPop <- zeroGen popSize d fnf
         let bestPm = getBest . fst $ initialPop
         let bestTm = getBest . snd $ initialPop
-        let initialHof = (bestPm, bestTm, fnf bestPm bestTm)
-        finalHof@(pm, tm, f) <- runCCGA' ep d fnf initialHof initialPop 0
-        return (pm, tm)
+        let initialHof@(bestPs, bestTs, fitness) = (bestPm, bestTm, fnf bestPm bestTm)
+        let stats = [(Stat 0 fitness (schedf bestPs bestTs))]
+        (finalHof@(pm, tm, _), stats) <- runCCGA' ep d fnf schedf initialHof initialPop [] 1
+        return ((pm, tm), reverse stats)
     popSize = cePopulationSize ep
     getBest = fst . head . sortBy (comparing snd)
 
@@ -138,18 +140,21 @@ runCCGA' :: (MonadRandom m)
           => CCEvolutionParameters
           -> Domain
           -> (PMap -> TMap -> Fitness)
+          -> (PMap -> TMap -> Float)
           -> HallOfFame
           -> ([(PMap, Fitness)], [(TMap, Fitness)])
+          -> [Stat]
           -> Int
-          -> m HallOfFame
-runCCGA' ep@(CCEvolutionParameters gens _ _ cxPb mtPb poolSize) dom fnf hof pop@(ps, ts) genNumber
-  | genNumber == gens = traceShow ts $ return hof
+          -> m (HallOfFame, [Stat])
+runCCGA' ep@(CCEvolutionParameters gens _ _ cxPb mtPb poolSize) dom fnf schedf hof pop@(ps, ts) stats genNumber
+  | genNumber > gens = traceShow ts $ return (hof, stats)
   | otherwise = do
       pReps <- represent poolSize ps
       tReps <- represent poolSize ts
-      (ps', ts', hof') <- evolve ep dom fnf hof (pReps, tReps) pop
+      (ps', ts', hof'@(bestPs, bestTs, bestFit)) <- evolve ep dom fnf hof (pReps, tReps) pop
       let pop' = (sortBy (comparing snd) ps', sortBy (comparing snd) ts')
-      traceShow (third hof') $ runCCGA' ep dom fnf hof' pop' (genNumber + 1)
+      let stats' = (Stat genNumber bestFit (schedf bestPs bestTs)) : stats
+      traceShow bestFit $ runCCGA' ep dom fnf schedf hof' pop' stats' (genNumber + 1)
     where
       bestPm = fst . head $ sortBy (comparing snd) ps
       comparedTms = map (\(tm, _) -> (tm, fnf bestPm tm)) ts
