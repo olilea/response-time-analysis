@@ -98,10 +98,8 @@ runs nocSize ts dataset = do
           Nothing -> 1000.0
           Just f -> f
 
-  mapM (\i -> gaRun d ep (bdf d) (met d) (show i)) [1..20]
-  mapM (\i -> ccgaRun d cep (bdf d) (met d)
-         (dataset ++ "_" ++ nocSizeS ++ "x" ++ nocSizeS ++ "_" ++ (show i)))
-    [1..20]
+  mapM (\i -> gaRun d ep (bdf d) (met d) (suffix i)) [1..20]
+  mapM (\i -> ccgaRun d cep (bdf d) (met d) (suffix i)) [1..20]
   return ()
     where
         ep = EvolutionParameters 100 100 2 0.7 0.01
@@ -109,6 +107,7 @@ runs nocSize ts dataset = do
         sf = 1.0
         p = Platform 1.0 1.0 1.0
         nocSizeS = show nocSize
+        suffix i = dataset ++ "_" ++ nocSizeS ++ "x" ++ nocSizeS ++ "_" ++ (show i)
 
 main :: IO ()
 main = do
