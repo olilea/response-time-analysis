@@ -98,7 +98,6 @@ runs nocSize ts dataset = do
           Nothing -> 1000.0
           Just f -> f
 
-  mapM (\i -> gaRun d ep (bdf d) (met d) (suffix i)) [1..20]
   mapM (\i -> ccgaRun d cep (bdf d) (met d) (suffix i)) [1..20]
   return ()
     where
@@ -107,7 +106,7 @@ runs nocSize ts dataset = do
         sf = 1.0
         p = Platform 1.0 1.0 1.0
         nocSizeS = show nocSize
-        suffix i = dataset ++ "_" ++ nocSizeS ++ "x" ++ nocSizeS ++ "_" ++ (show i)
+        suffix i = dataset ++ "_" ++ nocSizeS ++ "x" ++ nocSizeS ++ "_PRI_" ++ (show i)
 
 main :: IO ()
 main = do
@@ -128,18 +127,6 @@ statToCsv :: Stat -> String
 statToCsv s = (show gen) ++ "," ++ (show bdf) ++ "," ++ (show sched)
   where
     (Stat gen bdf sched) = s
-
-gaRun :: Domain
-      -> EvolutionParameters
-      -> (PMap -> TMap -> Float)
-      -> (PMap -> TMap -> Float)
-      -> String
-      -> IO ()
-gaRun d ep fnf schedf suffix = do
-  g <- newStdGen
-  let (mapping, stats) = runGA g ep d fnf schedf
-  writeFile ("data/ga_" ++ suffix ++ ".csv") $ statsToCsv stats
-
 
 ccgaRun :: Domain
       -> CCEvolutionParameters

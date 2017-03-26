@@ -16,7 +16,7 @@ import Data.Maybe
 import Debug.Trace
 
 endToEnd :: Platform -> Application -> ScaleFactor -> M.Map Task ResponseTime
-endToEnd p a@(Application cs ts _ _ pm) sf = es
+endToEnd p a@(Application cs ts _ _ tpm _) sf = es
     where
         taskLookup = M.fromList. map (\t -> (tId t, t)) $ ts
         rts = flattenMap

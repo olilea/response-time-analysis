@@ -14,6 +14,8 @@ type TaskDeadline = Float
 type TaskPriority = Int
 type TaskComputation = Float
 
+type CommPriority = Int
+
 type ResponseTime = Maybe Float
 
 type BasicLatency = Float
@@ -34,11 +36,12 @@ type TrafficFlow = [Link]
 
 type CoreMapping = M.Map CoreId Location
 type TaskMapping = M.Map TaskId CoreId
-type PriorityMapping = M.Map TaskId TaskPriority
+type TaskPriorityMapping = M.Map TaskId TaskPriority
+type CommPriorityMapping = M.Map TaskId CommPriority
 
 data Platform = Platform FlitSize LinkDelay RoutingDelay
     deriving (Eq, Show)
-data Application = Application [Core] [Task] TaskMapping CoreMapping PriorityMapping
+data Application = Application [Core] [Task] TaskMapping CoreMapping TaskPriorityMapping CommPriorityMapping
     deriving (Eq, Show)
 
 class (Ord a) => Unique a where

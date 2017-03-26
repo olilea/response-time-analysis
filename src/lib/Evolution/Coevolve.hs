@@ -24,7 +24,7 @@ import System.Random.Shuffle
 
 import Debug.Trace
 
-type HallOfFame = (PMap, TMap, Fitness)
+type HallOfFame = (PMap, CMap, TMap, Fitness)
 
 
 -- Choosing representatives
