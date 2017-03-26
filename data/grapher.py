@@ -20,14 +20,19 @@ def read_files(prefix, count):
 			skip_header=1))
 	return ds
 
-def best_by_col(data, col):
+def best_by_col(data, col, low_best=True):
 	best = data[0]
 	best_val = best[len(best) - 1][col]
 	for d in data:
 		cur_val = d[len(d) - 1][col]
-		if cur_val < best_val:
-			best = d
-			best_val = cur_val
+		if low_best:
+			if cur_val < best_val:
+				best = d
+				best_val = cur_val
+		else:
+			if cur_val > best_val:
+				best = d
+				best_val = cur_val
 	return best
 
 def mean_by_col(datas, col):
@@ -37,10 +42,10 @@ def mean_by_col(datas, col):
 def extract_col(data, col):
 	return [data[g][col] for g in range(len(data))]
 
-def ga_ccga_compare(title, ga_data, ccga_data, col):
+def ga_ccga_compare(title, ga_data, ccga_data, col, max_y=None, low_best=True):
 	def mean_best(data, col):
 		m = mean_by_col(data, col)
-		b = extract_col(best_by_col(data, col), col)
+		b = extract_col(best_by_col(data, col, low_best), col)
 		return (m, b)
 
 	ga_mean, ga_best = mean_best(ga_data, col)
@@ -49,8 +54,8 @@ def ga_ccga_compare(title, ga_data, ccga_data, col):
 	lines = plot_data(ga_mean, ga_best)
 	labels = ['GA mean', 'GA best']
 
-	lines.append(plot_data(ccga_mean, ccga_best))
-	labels.extend('CCGA mean', 'CCGA best')
+	lines.extend(plot_data(ccga_mean, ccga_best))
+	labels.extend(['CCGA mean', 'CCGA best'])
 
 	if col == BDF_COL:
 		lines.append(plt.plot([0, 100], [1.0, 1.0], 'k--'))
@@ -62,12 +67,17 @@ def ga_ccga_compare(title, ga_data, ccga_data, col):
 
 	plt.legend([l[0] for l in lines], labels)
 	plt.title(title)
+
+	if max_y is not None:
+		x1,x2,y1,y2 = plt.axis()
+		plt.axis((x1,x2,y1, max_y))
+
 	plt.show()
 
 if __name__ == '__main__':
 	ga3 = read_files('ga_ava_3x3_', 20)
 	ccga3 = read_files('ccga_ava_3x3_', 20)
-	ga_ccga_compare('AVA 3x3 Breakdown Frequency', ga3, ccga3, BDF_COL)
-	ga_ccga_compare('AVA 3x3 Schedulability', ga3, ccga3, SHCED_COL)
+	ga_ccga_compare('AVA 3x3 Breakdown Frequency', ga3, ccga3, BDF_COL, max_y=2.0)
+	ga_ccga_compare('AVA 3x3 Schedulability', ga3, ccga3, SCHED_COL, low_best=False)
 
 
