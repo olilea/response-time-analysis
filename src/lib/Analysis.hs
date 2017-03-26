@@ -20,7 +20,7 @@ endToEnd p a@(Application cs ts _ _ tpm _) sf = es
     where
         taskLookup = M.fromList. map (\t -> (tId t, t)) $ ts
         rts = flattenMap
-                    . map (\c -> responseTimeAnalysis (tasksOnCore c a taskLookup) pm c sf)
+                    . map (\c -> responseTimeAnalysis (tasksOnCore c a taskLookup) tpm c sf)
                     $ cs
         commTimes = communicationAnalysis p sf a rts
         es = M.fromList

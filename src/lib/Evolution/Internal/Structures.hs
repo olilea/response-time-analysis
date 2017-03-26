@@ -5,7 +5,8 @@ module Evolution.Internal.Structures
   , Stat(..)
   , Domain(..)
   , Fitness
-  , PMap
+  , TPMap
+  , CPMap
   , TMap)
   where
 
@@ -39,7 +40,10 @@ data Domain = Domain [Core] [Task] Platform
 type Fitness = Float
 
 -- Maps task ID to priority
-type PMap = [(TaskId, TaskPriority)]
+type TPMap = [(TaskId, TaskPriority)]
+
+-- Maps task ID to traffic-flow priority
+type CPMap = [(TaskId, CommPriority)]
 
 -- Maps task ID to core ID
 type TMap = [(TaskId, CoreId)]

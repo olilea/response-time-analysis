@@ -1,3 +1,4 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Evolution.Coevolve
   ( runCCGA
@@ -24,8 +25,10 @@ import System.Random.Shuffle
 
 import Debug.Trace
 
-type HallOfFame = (PMap, CMap, TMap, Fitness)
+type HallOfFame = (TPMap, CPMap, TMap, Fitness)
 
+type Population = ([TPMap], [CPMap], [TMap])
+type FitnessF = (TPMap -> CPMap -> TMap -> Fitness)
 
 -- Choosing representatives
 
@@ -48,41 +51,56 @@ genPopulation :: (MonadRandom m)
                => Int
                -> Int
                -> Int
-               -> m ([PMap], [TMap])
+               -> m ([TPMap], [CPMap], [TMap])
 genPopulation popSize cs ts = do
     let populate = replicateM popSize
-    ps <- populate $ genPriorityMapping ts
+    tps <- populate $ genPriorityMapping ts
+    cps <- populate $ genPriorityMapping ts
     ms <- populate $ genTaskMapping ts cs
-    return (ps, ms)
+    return (tps, cps, ms)
 
 -- Initial fitness calculation
 
 -- Match a priority mapping to a random task mapping
 -- in order to assign a fitness
-initialPriorityFitness :: (MonadRandom m)
-                       => (PMap -> TMap -> Fitness)
-                       -> ([PMap], [TMap])
-                       -> m [(PMap, Fitness)]
-initialPriorityFitness fnf (ps, ms) = do
+initialTaskPriorityFitness :: (MonadRandom m)
+                           => FitnessF
+                           -> Population
+                           -> m [(TPMap, Fitness)]
+initialTaskPriorityFitness fnf (tps, cps, ms) = do
   mPicks <- replicateM (length ms) (pick ms)
+  cpPicks <- replicateM (length cps) (pick cps)
   -- Take a [PMap] and produce a [(Priorities, Fitness)], sorted
   return
     . sortBy (comparing snd)
-    . map (\(p, m) -> (p, fnf p m))
-    $ zip ps mPicks
+    . map (\(tp, cp, m) -> (tp, fnf tp cp m))
+    $ zip3 tps cpPicks mPicks
+
+initialCommPriorityFitness :: (MonadRandom m)
+                           => FitnessF
+                           -> Population
+                           -> m [(CPMap, Fitness)]
+initialCommPriorityFitness fnf (tps, cps, ms) = do
+  mPicks <- replicateM (length ms) (pick ms)
+  tpPicks <- replicateM (length tps) (pick tps)
+  return
+    . sortBy (comparing snd)
+    . map (\(tp, cp, m) -> (cp, fnf tp cp m))
+    $ zip3 tpPicks cps mPicks
 
 -- Match a task mapping to a random priority mapping
 -- in order to assign a fitness
 initialTaskMapFitness :: (MonadRandom m)
-                      => (PMap -> TMap -> Fitness)
-                      -> ([PMap], [TMap])
+                      => FitnessF
+                      -> Population
                       -> m [(TMap, Float)]
-initialTaskMapFitness fnf (ps, ms) = do
-  pPicks <- replicateM (length ps) (pick ps)
+initialTaskMapFitness fnf (tps, cps, ms) = do
+  tpPicks <- replicateM (length tps) (pick tps)
+  cpPicks <- replicateM (length cps) (pick cps)
   return
     . sortBy (comparing snd)
-    . map (\(p, m) -> (m, fnf p m))
-    $ zip pPicks ms
+    . map (\(tp, cp, m) -> (m, fnf tp cp m))
+    $ zip3 tpPicks cpPicks ms
 
 -- Actual GA implementation
 
@@ -90,19 +108,20 @@ runCCGA :: (RandomGen g)
          => g
          -> CCEvolutionParameters
          -> Domain
-         -> (PMap -> TMap -> Fitness)
-         -> (PMap -> TMap -> Float)
-         -> ((PMap, TMap), [Stat])
+         -> FitnessF
+         -> (TPMap -> CPMap -> TMap -> Float)
+         -> ((TPMap, CPMap, TMap), [Stat])
 runCCGA g ep d@(Domain cs ts p) fnf schedf = evalRand run g
   where
     run = do
         initialPop <- zeroGen popSize d fnf
-        let bestPm = getBest . fst $ initialPop
-        let bestTm = getBest . snd $ initialPop
-        let initialHof@(bestPs, bestTs, fitness) = (bestPm, bestTm, fnf bestPm bestTm)
-        let stats = [(Stat 0 fitness (schedf bestPs bestTs))]
-        (finalHof@(pm, tm, _), stats) <- runCCGA' ep d fnf schedf initialHof initialPop stats 1
-        return ((pm, tm), stats)
+        let bestTPm = getBest . fst3 $ initialPop
+        let bestCPm = getBest . snd3 $ initialPop
+        let bestTm = getBest . third $ initialPop
+        let initialHof@(bestTPs, bestCPs, bestMs, fitness) = (bestTPm, bestCPm, bestTm, fnf bestTPm bestCPm bestTm)
+        let stats = [(Stat 0 fitness (schedf bestTPs bestCPs bestMs))]
+        (finalHof@(tpm, cpm, tm, _), stats) <- runCCGA' ep d fnf schedf initialHof initialPop stats 1
+        return ((tpm, cpm, tm), stats)
     popSize = cePopulationSize ep
     getBest = fst . head . sortBy (comparing snd)
 
@@ -115,12 +134,13 @@ runCCGA g ep d@(Domain cs ts p) fnf schedf = evalRand run g
 zeroGen :: (MonadRandom m)
         => Int
         -> Domain
-        -> (PMap -> TMap -> Float)
-        -> m ([(PMap, Fitness)], [(TMap, Fitness)])
+        -> FitnessF
+        -> m ([(TPMap, Fitness)], [(CPMap, Fitness)], [(TMap, Fitness)])
 zeroGen popSize d@(Domain cs ts _) fnf = do
-  (!ps, ms) <- genPopulation popSize (length cs) (length ts)
-  (,) <$> initialPriorityFitness fnf (ps, ms)
-      <*> initialTaskMapFitness fnf (ps, ms)
+  (tps, cps, ms) <- genPopulation popSize (length cs) (length ts)
+  (,,) <$> initialTaskPriorityFitness fnf (tps, cps, ms)
+      <*> initialCommPriorityFitness fnf (tps, cps, ms)
+      <*> initialTaskMapFitness fnf (tps, cps, ms)
 
 -- The recursive part of the GA.
 --
@@ -139,55 +159,56 @@ zeroGen popSize d@(Domain cs ts _) fnf = do
 runCCGA' :: (MonadRandom m)
           => CCEvolutionParameters
           -> Domain
-          -> (PMap -> TMap -> Fitness)
-          -> (PMap -> TMap -> Float)
+          -> FitnessF
+          -> (TPMap -> CPMap -> TMap -> Float)
           -> HallOfFame
-          -> ([(PMap, Fitness)], [(TMap, Fitness)])
+          -> ([(TPMap, Fitness)], [(CPMap, Fitness)], [(TMap, Fitness)])
           -> [Stat]
           -> Int
           -> m (HallOfFame, [Stat])
-runCCGA' ep@(CCEvolutionParameters gens _ _ cxPb mtPb poolSize) dom fnf schedf hof pop@(ps, ts) stats genNumber
-  | genNumber > gens = traceShow ts $ return (hof, stats)
+runCCGA' ep@(CCEvolutionParameters gens _ _ cxPb mtPb poolSize) dom fnf schedf hof pop@(tps, cps, ms) stats genNumber
+  | genNumber > gens = traceShow ms $ return (hof, stats)
   | otherwise = do
-      pReps <- represent poolSize ps
-      tReps <- represent poolSize ts
-      (ps', ts', hof'@(bestPs, bestTs, bestFit)) <- evolve ep dom fnf hof (pReps, tReps) pop
-      let pop' = (sortBy (comparing snd) ps', sortBy (comparing snd) ts')
-      let stats' = (Stat genNumber bestFit (schedf bestPs bestTs)) : stats
+      tpReps <- represent poolSize tps
+      cpReps <- represent poolSize cps
+      mReps <- represent poolSize ms
+      (tps', cps', ms', hof'@(bestTPs, bestCPs, bestMs, bestFit)) <- evolve ep dom fnf hof (tpReps, cpReps, mReps) pop
+      let pop' = (sortBy (comparing snd) tps', sortBy (comparing snd) cps', sortBy (comparing snd) ms')
+      let stats' = (Stat genNumber bestFit (schedf bestTPs bestCPs bestMs)) : stats
       traceShow bestFit $ runCCGA' ep dom fnf schedf hof' pop' stats' (genNumber + 1)
-    where
-      bestPm = fst . head $ sortBy (comparing snd) ps
-      comparedTms = map (\(tm, _) -> (tm, fnf bestPm tm)) ts
 
 -- Evolve a population into the next generation using the provided
 -- fitness function and parameters
-evolve :: (MonadRandom m)
+evolve :: forall m . (MonadRandom m)
        => CCEvolutionParameters
        -> Domain
-       -> (PMap -> TMap -> Fitness)
+       -> FitnessF
        -> HallOfFame
-       -> ([PMap], [TMap])
-       -> ([(PMap, Fitness)], [(TMap, Fitness)])
-       -> m ([(PMap, Fitness)], [(TMap, Fitness)], HallOfFame)
-evolve ep dom fnf hof@(hofPm, hofTm, hofFit) reps@(pReps, tReps) pop@(ps, ts) = do
-  selectedPs <- select ps
-  selectedTs <- select ts
-  offspringPs <- (++) selectedPs <$> offspring priorityCrossover selectedPs
-  offspringTs <- (++) selectedTs <$> offspring mappingCrossover selectedTs
-  newGenPs <- mapM (mutate mtPb swapMutate) offspringPs
-  newGenTs <- mapM (mutate mtPb (flipMutate (1, length cs))) offspringTs
-  let tFits = map (evalMappingFitness fnf pReps) newGenTs `using` parList rdeepseq
-  let pFits = map (evalPriorityFitness fnf tReps) newGenPs `using` parList rdeepseq
-  let curBest@(curPm, curTm, curFit) = head . sortBy (comparing third) $ tFits ++ pFits
-  let hof' = if curFit < hofFit then (curPm, curTm, curFit) else hof
-  return $ (map (\(x, _, f) -> (x, f)) pFits
-           , map (\(_, y, f) -> (y, f)) tFits
+       -> ([TPMap], [CPMap], [TMap])
+       -> ([(TPMap, Fitness)], [(CPMap, Fitness)], [(TMap, Fitness)])
+       -> m ([(TPMap, Fitness)], [(CPMap, Fitness)], [(TMap, Fitness)], HallOfFame)
+evolve ep dom fnf hof@(hofTPm, hofCPm, hofM, hofFit) reps@(tpReps, cpReps, mReps) pop@(tps, cps, ms) = do
+  selectedTPs <- select tps
+  selectedCPs <- select cps
+  selectedMs <- select ms
+  offspringTPs <- (++) selectedTPs <$> offspring priorityCrossover selectedTPs
+  offspringCPs <- (++) selectedCPs <$> offspring priorityCrossover selectedCPs
+  offspringMs <- (++) selectedMs <$> offspring mappingCrossover selectedMs
+  newGenTPs <- mapM (mutate mtPb swapMutate) offspringTPs
+  newGenCPs <- mapM (mutate mtPb swapMutate) offspringCPs
+  newGenMs <- mapM (mutate mtPb (flipMutate (1, length cs))) offspringMs
+  mFits <- mapM (evalMappingFitness fnf tpReps cpReps) newGenMs
+  tpFits <- mapM (evalTaskPriorityFitness fnf cpReps mReps) newGenTPs
+  cpFits <- mapM (evalCommPriorityFitness fnf tpReps mReps) newGenCPs
+  let curBest@(curTPm, curCPm, curM, curFit) = head . sortBy (comparing fourth) $ mFits ++ tpFits ++ cpFits
+  let hof' = if curFit < hofFit then (curTPm, curCPm, curM, curFit) else hof
+  return $ (map (\(x, _, _, f) -> (x, f)) tpFits
+           , map (\(_, y, _, f) -> (y, f)) cpFits
+           , map (\(_, _, z, f) -> (z, f)) mFits
            , hof')
     where
       (CCEvolutionParameters _ popSize tournSize cxPb mtPb _) = ep
       (Domain cs _ _) = dom
-      pOrig = map fst ps
-      mOrig = map fst ts
       select xs = replicateM (ceiling (fromIntegral popSize * (1.0 - cxPb))) (tournament tournSize xs)
       offspring cxF subpop = replicateM (popSize - (length subpop)) (reproduce cxF subpop)
 
@@ -207,19 +228,42 @@ mutate mtPb mutation ind = do
           subject = map fst ind
           values = map snd ind
 
-evalPriorityFitness :: (PMap -> TMap -> Fitness)
-                    -> [TMap]
-                    -> PMap
-                    -> (PMap, TMap, Fitness)
-evalPriorityFitness fnf reps pmap = head . sortBy (comparing third) $ rs
-  where
-    rs = map (\r -> (pmap, r, fnf pmap r)) reps
+evalTaskPriorityFitness :: (MonadRandom m)
+                        => FitnessF
+                        -> [CPMap]
+                        -> [TMap]
+                        -> TPMap
+                        -> m (TPMap, CPMap, TMap, Fitness)
+evalTaskPriorityFitness fnf cpReps mReps tpMap = do
+  scp <- shuffleM cpReps
+  sm <- shuffleM mReps
+  let reps = zip scp sm
+  let rs = map (\(cp, m) -> (tpMap, cp, m, fnf tpMap cp m)) reps
+  return . head . sortBy (comparing fourth) $ rs
 
-evalMappingFitness :: (PMap -> TMap -> Fitness)
-                   -> [PMap]
+evalCommPriorityFitness :: (MonadRandom m)
+                        => FitnessF
+                        -> [TPMap]
+                        -> [TMap]
+                        -> CPMap
+                        -> m (TPMap, CPMap, TMap, Fitness)
+evalCommPriorityFitness fnf tpReps mReps cpMap = do
+  stp <- shuffleM tpReps
+  sm <- shuffleM mReps
+  let reps = zip stp sm
+  let rs = map (\(tp, m) -> (tp, cpMap, m, fnf tp cpMap m)) reps
+  return . head . sortBy (comparing fourth) $ rs
+
+evalMappingFitness :: (MonadRandom m)
+                   => FitnessF
+                   -> [TPMap]
+                   -> [CPMap]
                    -> TMap
-                   -> (PMap, TMap, Fitness)
-evalMappingFitness fnf reps tmap = head . sortBy (comparing third) $ rs
-  where
-    rs = map (\r -> (r, tmap, fnf r tmap)) reps
+                   -> m (TPMap, CPMap, TMap, Fitness)
+evalMappingFitness fnf tpReps cpReps mMap = do
+  stp <- shuffleM tpReps
+  scp <- shuffleM cpReps
+  let reps = zip stp scp
+  let rs = map (\(tp, cp) -> (tp, cp, mMap, fnf tp cp mMap)) reps
+  return . head . sortBy (comparing fourth) $ rs
 
