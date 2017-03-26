@@ -21,7 +21,7 @@ import Analysis.Internal.Structures
 debugOut :: (Show a) => a -> a
 debugOut a = traceShow a a
 
-descendingPriority :: [Task] -> PriorityMapping -> [Task]
+descendingPriority :: [Task] -> M.Map TaskId Int -> [Task]
 descendingPriority ts pm = map fst ps
     where
         ps = sortBy (comparing snd) . map (\t -> (t, fetch pm (tId t))) $ ts
@@ -38,7 +38,7 @@ expandId idLookup = M.mapKeys fromId
         fromId x = fromJust . M.lookup x $ idLookup
 
 tasksOnCore :: Core -> Application -> M.Map TaskId Task -> [Task]
-tasksOnCore c (Application _ _ tm _ _) taskLookup = map (toTask . fst) . filter isOnCore . M.toList $ tm
+tasksOnCore c (Application _ _ tm _ _ _) taskLookup = map (toTask . fst) . filter isOnCore . M.toList $ tm
     where
         isOnCore (_, coreId) = coreId == cId c
         toTask task = fromJust $ M.lookup task taskLookup

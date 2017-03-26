@@ -91,9 +91,9 @@ runs nocSize ts dataset = do
   let d = Domain cs ts p
   putStrLn . show $ length ts
 
-  let met d pm tm = let missing = fromIntegral $ missingDeadlines p (Application cs ts (M.fromList tm) coreMapping (M.fromList pm)) sf in
+  let met d tpm cpm tm = let missing = fromIntegral $ missingDeadlines p (Application cs ts (M.fromList tm) coreMapping (M.fromList tpm) (M.fromList cpm)) sf in
         (-) 100.0 $ (fromIntegral missing) / (fromIntegral (length ts)) * 100.0
-  let bdf d pm tm = let bFreq = bdf2 p (Application cs ts (M.fromList tm) coreMapping (M.fromList pm)) in 
+  let bdf d tpm cpm tm = let bFreq = bdf2 p (Application cs ts (M.fromList tm) coreMapping (M.fromList tpm) (M.fromList cpm)) in
         case bFreq of
           Nothing -> 1000.0
           Just f -> f
@@ -130,8 +130,8 @@ statToCsv s = (show gen) ++ "," ++ (show bdf) ++ "," ++ (show sched)
 
 ccgaRun :: Domain
       -> CCEvolutionParameters
-      -> (PMap -> TMap -> Float)
-      -> (PMap -> TMap -> Float)
+      -> (TPMap -> CPMap -> TMap -> Float)
+      -> (TPMap -> CPMap -> TMap -> Float)
       -> String
       -> IO ()
 ccgaRun d ep fnf schedf suffix = do

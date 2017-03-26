@@ -1,6 +1,9 @@
 
 module Evolution.Internal.Utils
   ( third
+  , fourth
+  , fst3
+  , snd3
   , pick
   , tournament
   , flipMutate
@@ -14,19 +17,29 @@ module Evolution.Internal.Utils
   ,genPriorityMapping
   ) where
 
+import Analysis
 import Evolution.Internal.Structures
 
 import Control.Monad
 import Control.Monad.Random
 
 import Data.List
+import qualified Data.Map as M
 import Data.Ord
 
 import System.Random.Shuffle
 
+fst3 :: (a, b, c) -> a
+fst3 (x, _, _) = x
+
+snd3 :: (a, b, c) -> b
+snd3 (_, x, _) = x
 
 third :: (a, b, c) -> c
 third (_, _, x) = x
+
+fourth :: (a, b, c, d) -> d
+fourth (_, _, _, x) = x
 
 pick :: (MonadRandom m) => [a] -> m a
 pick as = (!!) as <$> getRandomR (0, (length as) - 1)
@@ -119,9 +132,9 @@ mappingCrossover l r = do
 --
 -- TODO: Need to add the random selection between the two
 priorityCrossover :: (MonadRandom m)
-                  => PMap
-                  -> PMap
-                  -> m PMap
+                  => [(TaskId, Int)]
+                  -> [(TaskId, Int)]
+                  -> m [(TaskId, Int)]
 priorityCrossover l r = do
   let sortL = sortBy (comparing fst) l
   let sortR = sortBy (comparing fst) r
@@ -154,7 +167,7 @@ genTaskMapping ts cs = do
   mappedCores <- replicateM ts (getRandomR (1, cs))
   return $ zip [1..ts] mappedCores
 
-genPriorityMapping :: (MonadRandom m) => Int -> m PMap
+genPriorityMapping :: (MonadRandom m) => Int -> m [(TaskId, Int)]
 genPriorityMapping ts = do
   priorities <- shuffleM [1..ts]
   let tasks = [1..ts]

@@ -36,7 +36,6 @@ library
                        , Analysis.Internal.Structures
                        , Analysis.Internal.Utils
                        , Evolution.Coevolve
-                       , Evolution.Evolve
                        , Evolution.Internal.Structures
                        , Evolution.Internal.Utils
   build-depends:       base >= 4.7 && < 5
