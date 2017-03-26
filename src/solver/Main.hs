@@ -102,8 +102,8 @@ runs nocSize ts dataset = do
   mapM (\i -> ccgaRun d cep (bdf d) (met d) (suffix i)) [1..20]
   return ()
     where
-        ep = EvolutionParameters 100 100 2 0.7 0.01
-        cep = CCEvolutionParameters 100 100 2 0.7 0.01 10
+        ep = EvolutionParameters 100 200 2 0.7 0.01
+        cep = CCEvolutionParameters 100 200 2 0.7 0.01 10
         sf = 1.0
         p = Platform 1.0 1.0 1.0
         nocSizeS = show nocSize
@@ -116,7 +116,7 @@ main = do
   -- ts <- genTaskSet maxTaskUtil taskSetUtil
   let ts = map (\((id, c, t), comm) -> (Task id (t * 1000000000) (t * 1000000000) (c * 1000000000) comm))
         $ zip avaTs avaCs
-  mapM (\i -> runs i ts "ava") [3..5]
+  mapM (\i -> runs i ts "ava") [3, 4, 5]
   return ()
 
 statsToCsv :: [Stat] -> String

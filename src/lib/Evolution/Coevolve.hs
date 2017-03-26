@@ -101,8 +101,8 @@ runCCGA g ep d@(Domain cs ts p) fnf schedf = evalRand run g
         let bestTm = getBest . snd $ initialPop
         let initialHof@(bestPs, bestTs, fitness) = (bestPm, bestTm, fnf bestPm bestTm)
         let stats = [(Stat 0 fitness (schedf bestPs bestTs))]
-        (finalHof@(pm, tm, _), stats) <- runCCGA' ep d fnf schedf initialHof initialPop [] 1
-        return ((pm, tm), reverse stats)
+        (finalHof@(pm, tm, _), stats) <- runCCGA' ep d fnf schedf initialHof initialPop stats 1
+        return ((pm, tm), stats)
     popSize = cePopulationSize ep
     getBest = fst . head . sortBy (comparing snd)
 

@@ -3,5 +3,6 @@ extra-package-dbs: []
 packages:
 - '.'
 extra-deps:
+- erf-native-1.0.0.0
 - random-extras-0.19
 resolver: lts-7.16
