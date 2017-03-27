@@ -42,24 +42,20 @@ def mean_by_col(datas, col):
 def extract_col(data, col):
 	return [data[g][col] for g in range(len(data))]
 
-def ga_ccga_compare(title, ga_data, ccga_data, col, max_y=None, low_best=True):
-	def mean_best(data, col):
-		m = mean_by_col(data, col)
-		b = extract_col(best_by_col(data, col, low_best), col)
-		return (m, b)
+def mean_best(data, col, low_best=True):
+	m = mean_by_col(data, col)
+	b = extract_col(best_by_col(data, col, low_best), col)
+	return (m, b)
 
-	ga_mean, ga_best = mean_best(ga_data, col)
-	ccga_mean, ccga_best = mean_best(ccga_data, col)
+def compare(title, data1, data2, labels, col, max_y=None, low_best=True):
+	d1_mean, d1_best = mean_best(data1, col, low_best)
+	d2_mean, d2_best = mean_best(data2, col, low_best)
 
-	lines = plot_data(ga_mean, ga_best)
-	labels = ['GA mean', 'GA best']
-
-	lines.extend(plot_data(ccga_mean, ccga_best))
-	labels.extend(['CCGA mean', 'CCGA best'])
+	lines = plot_data(d1_mean, d1_best)
+	lines.extend(plot_data(d2_mean, d2_best))
 
 	if col == BDF_COL:
 		lines.append(plt.plot([0, 100], [1.0, 1.0], 'k--'))
-		labels.append('Schedulable')
 		plt.ylabel('Breakdown Frequency')
 	else:
 		plt.ylabel('Schedulability (%)')
@@ -77,7 +73,14 @@ def ga_ccga_compare(title, ga_data, ccga_data, col, max_y=None, low_best=True):
 if __name__ == '__main__':
 	ga3 = read_files('ga_ava_3x3_', 20)
 	ccga3 = read_files('ccga_ava_3x3_', 20)
-	ga_ccga_compare('AVA 3x3 Breakdown Frequency', ga3, ccga3, BDF_COL, max_y=2.0)
-	ga_ccga_compare('AVA 3x3 Schedulability', ga3, ccga3, SCHED_COL, low_best=False)
 
+	hopri_3_ava = read_files('ccga_ava_3x3_PRI_', 20)
+
+	labels = ['GA mean', 'GA best', 'CCGA mean', 'CCGA best', 'Schedulable']
+	compare('AVA 3x3 Breakdown Frequency', ga3, ccga3, labels, BDF_COL, max_y=2.0)
+	compare('AVA 3x3 Schedulability', ga3, ccga3, labels, SCHED_COL, low_best=False)
+
+
+	labels = ['HO-PRI mean', 'HO-PRI best', 'CCGA mean', 'CCGA best', 'Schedulable']
+	compare('HO-PRI 3x3 Breakdown Frequency', hopri_3_ava, ccga3, labels, BDF_COL, max_y=2.0)
 
