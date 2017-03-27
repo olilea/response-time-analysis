@@ -115,7 +115,7 @@ main = do
   -- ts <- genTaskSet maxTaskUtil taskSetUtil
   let ts = map (\((id, c, t), comm) -> (Task id (t * 1000000000) (t * 1000000000) (c * 1000000000) comm))
         $ zip avaTs avaCs
-  mapM (\i -> runs i ts "ava") [3, 4, 5]
+  mapM (\i -> runs i ts "ava") [3, 4]
   return ()
 
 statsToCsv :: [Stat] -> String
