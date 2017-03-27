@@ -47,7 +47,7 @@ def mean_best(data, col, low_best=True):
 	b = extract_col(best_by_col(data, col, low_best), col)
 	return (m, b)
 
-def compare(title, data1, data2, labels, col, max_y=None, low_best=True):
+def compare(title, data1, data2, labels, col, min_y=None, max_y=None, low_best=True):
 	d1_mean, d1_best = mean_best(data1, col, low_best)
 	d2_mean, d2_best = mean_best(data2, col, low_best)
 
@@ -64,9 +64,13 @@ def compare(title, data1, data2, labels, col, max_y=None, low_best=True):
 	plt.legend([l[0] for l in lines], labels)
 	plt.title(title)
 
+
+	x1,x2,y1,y2 = plt.axis()
 	if max_y is not None:
-		x1,x2,y1,y2 = plt.axis()
-		plt.axis((x1,x2,y1, max_y))
+		y2 = max_y
+	if min_y is not None:
+		y1 = min_y
+	plt.axis((x1,x2,y1, max_y))
 
 	plt.show()
 
@@ -84,7 +88,7 @@ if __name__ == '__main__':
 	hopri_3_ava = read_files('ccga_ava_3x3_PRI/ccga_ava_3x3_PRI_', 10)
 
 	labels = ['HO-GA mean', 'HO-GA best', 'HO-CCGA mean', 'HO-CCGA best', 'Schedulable']
-	compare('AVA Breakdown Frequency', ho_ga_ava, ho_ccga_ava, labels, BDF_COL, max_y=2.0)
+	compare('AVA Breakdown Frequency', ho_ga_ava, ho_ccga_ava, labels, BDF_COL, min_y=0.5, max_y=2.0)
 	compare('AVA Schedulability', ho_ga_ava, ho_ccga_ava, labels, SCHED_COL, low_best=False)
 
 	compare('Generated - 0.25 Breakdown Frequency', ho_ga_25, ho_ccga_25, labels, BDF_COL, max_y=2.0)
