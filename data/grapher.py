@@ -71,16 +71,29 @@ def compare(title, data1, data2, labels, col, max_y=None, low_best=True):
 	plt.show()
 
 if __name__ == '__main__':
-	ga3 = read_files('ga_ava_3x3_', 20)
-	ccga3 = read_files('ccga_ava_3x3_', 20)
+	from os import path
+	ho_ga_ava = read_files(path.join('ga_ava_3x3', 'ga_ava_3x3_'), 10)
+	ho_ccga_ava = read_files(path.join('ccga_ava_3x3', 'ccga_ava_3x3_'), 10)
 
-	hopri_3_ava = read_files('ccga_ava_3x3_PRI_', 20)
+	ho_ga_25 = read_files(path.join('ga_gen_m25_u6_3x3', 'ga_gen_m25_u6_3x3_'), 10)
+	ho_ccga_25 = read_files(path.join('ccga_gen_m25_u6_3x3', 'ccga_gen_m25_u6_3x3_'), 10)
 
-	labels = ['GA mean', 'GA best', 'CCGA mean', 'CCGA best', 'Schedulable']
-	compare('AVA 3x3 Breakdown Frequency', ga3, ccga3, labels, BDF_COL, max_y=2.0)
-	compare('AVA 3x3 Schedulability', ga3, ccga3, labels, SCHED_COL, low_best=False)
+	ho_ga_5 = read_files(path.join('ga_gen_m5_u6_3x3', 'ga_gen_m5_u6_3x3_'), 10)
+	ho_ccga_5 = read_files(path.join('ccga_gen_m5_u6_3x3', 'ccga_gen_m5_u6_3x3_'), 10)
+
+	hopri_3_ava = read_files('ccga_ava_3x3_PRI/ccga_ava_3x3_PRI_', 10)
+
+	labels = ['HO-GA mean', 'HO-GA best', 'HO-CCGA mean', 'HO-CCGA best', 'Schedulable']
+	compare('AVA Breakdown Frequency', ho_ga_ava, ho_ccga_ava, labels, BDF_COL, max_y=2.0)
+	compare('AVA Schedulability', ho_ga_ava, ho_ccga_ava, labels, SCHED_COL, low_best=False)
+
+	compare('Generated - 0.25 Breakdown Frequency', ho_ga_25, ho_ccga_25, labels, BDF_COL, max_y=2.0)
+	compare('Generated - 0.25 Schedulability', ho_ga_25, ho_ccga_25, labels, SCHED_COL, low_best=False)
+
+	compare('Generated - 0.5 Breakdown Frequency', ho_ga_5, ho_ccga_5, labels, BDF_COL, max_y=2.0)
+	compare('Generated - 0.5 Schedulability', ho_ga_5, ho_ccga_5, labels, SCHED_COL, low_best=False)
 
 
-	labels = ['HO-PRI mean', 'HO-PRI best', 'CCGA mean', 'CCGA best', 'Schedulable']
-	compare('HO-PRI 3x3 Breakdown Frequency', hopri_3_ava, ccga3, labels, BDF_COL, max_y=2.0)
+	# labels = ['HO-PRI mean', 'HO-PRI best', 'CCGA mean', 'CCGA best', 'Schedulable']
+	# compare('HO-PRI 3x3 Breakdown Frequency', hopri_3_ava, ccga3, labels, BDF_COL, max_y=2.0)
 
