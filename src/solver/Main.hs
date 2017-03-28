@@ -93,29 +93,15 @@ extractArguments = do
     (nocSize:maxUtil:taskSetUtil:[]) ->
       return $ (read nocSize :: Int, read maxUtil :: Float, read taskSetUtil :: Float)
 
-runs :: Int -> [Task] -> String -> IO ()
-runs nocSize ts dataset = do
-  -- let cs = [Core idee 1.0 | idee <- [1..nocSize*nocSize]]
-  cs <- genCoreSet (nocSize*nocSize) (0.6, 1.4)
-  let coreMapping = M.fromList $ zip [1..nocSize*nocSize] [Location r c | r <- [1..nocSize], c <- [1..nocSize]]
-  let d = Domain cs ts p
-  putStrLn $ show . sum . map cSpeed $ cs
-  putStrLn . show $ length ts
+runs :: Int -> String -> IO ()
+runs nocSize dataset = do
 
-  let met d pm tm = let missing = fromIntegral $ missingDeadlines p (Application cs ts (M.fromList tm) coreMapping (M.fromList pm)) sf in
-        (-) 100.0 $ (fromIntegral missing) / (fromIntegral (length ts)) * 100.0
-  let bdf d pm tm = let bFreq = bdf2 p (Application cs ts (M.fromList tm) coreMapping (M.fromList pm)) in 
-        case bFreq of
-          Nothing -> 1000.0
-          Just f -> f
-
-  -- mapM (\i -> gaRun d ep (bdf d) (met d) (suffix i)) [1..10]
-  mapM (\i -> ccgaRun d cep (bdf d) (met d) (suffix i)) [1..10]
+  mapM (\i -> gaRun p nocSize ep (suffix i)) [1..10]
+  mapM (\i -> ccgaRun p nocSize cep (suffix i)) [1..10]
   return ()
     where
         ep = EvolutionParameters 100 200 2 0.7 0.01
         cep = CCEvolutionParameters 100 200 2 0.7 0.01 10
-        sf = 1.0
         p = Platform 1.0 1.0 1.0
         nocSizeS = show nocSize
         suffix i = dataset ++ "_" ++ nocSizeS ++ "x" ++ nocSizeS ++ "_" ++ (show i)
@@ -123,11 +109,7 @@ runs nocSize ts dataset = do
 main :: IO ()
 main = do
   g <- getStdGen
-  -- (nocSize, maxTaskUtil, taskSetUtil) <- extractArguments
-  -- ts <- genTaskSet maxTaskUtil taskSetUtil
-  let ts = map (\((id, c, t), comm) -> (Task id (t * 1000000000) (t * 1000000000) (c * 1000000000) comm))
-        $ zip avaTs avaCs
-  mapM (\i -> runs i ts "ava") [3]
+  mapM (\i -> runs i "gen_m5_u6") [3]
   return ()
 
 statsToCsv :: [Stat] -> String
@@ -140,27 +122,58 @@ statToCsv s = (show gen) ++ "," ++ (show bdf) ++ "," ++ (show sched)
   where
     (Stat gen bdf sched) = s
 
-gaRun :: Domain
+gaRun :: Platform
+      -> Int
       -> EvolutionParameters
-      -> (PMap -> TMap -> Float)
-      -> (PMap -> TMap -> Float)
       -> String
       -> IO ()
-gaRun d ep fnf schedf suffix = do
+gaRun p nocSize ep suffix = do
   g <- newStdGen
-  let (mapping, stats) = runGA g ep d fnf schedf
+  (nocSize, maxTaskUtil, taskSetUtil) <- extractArguments
+  ts <- genTaskSet maxTaskUtil taskSetUtil
+  -- let ts = map (\((id, c, t), comm) -> (Task id (t * 1000000000) (t * 1000000000) (c * 1000000000) comm))
+  --       $ zip avaTs avaCs
+  let cs = [Core idee 1.0 | idee <- [1..nocSize*nocSize]]
+  -- cs <- genCoreSet (nocSize*nocSize) (0.2, 1.8)
+  let coreMapping = M.fromList $ zip [1..nocSize*nocSize] [Location r c | r <- [1..nocSize], c <- [1..nocSize]]
+  let d = Domain cs ts p
+  putStrLn $ show . sum . map cSpeed $ cs
+  putStrLn . show $ length ts
+
+  let met pm tm = let missing = fromIntegral $ missingDeadlines p (Application cs ts (M.fromList tm) coreMapping (M.fromList pm)) 1.0 in
+        (-) 100.0 $ (fromIntegral missing) / (fromIntegral (length ts)) * 100.0
+  let bdf pm tm = let bFreq = bdf2 p (Application cs ts (M.fromList tm) coreMapping (M.fromList pm)) in
+        case bFreq of
+          Nothing -> 1000.0
+          Just f -> f
+  let (mapping, stats) = runGA g ep d bdf met
   writeFile ("data/ga_" ++ suffix ++ ".csv") $ statsToCsv stats
 
-
-ccgaRun :: Domain
-      -> CCEvolutionParameters
-      -> (PMap -> TMap -> Float)
-      -> (PMap -> TMap -> Float)
-      -> String
-      -> IO ()
-ccgaRun d ep fnf schedf suffix = do
+ccgaRun :: Platform
+        -> Int
+        -> CCEvolutionParameters
+        -> String
+        -> IO ()
+ccgaRun p nocSize ep suffix = do
   g <- newStdGen
-  let (mapping, stats) = runCCGA g ep d fnf schedf
+  (nocSize, maxTaskUtil, taskSetUtil) <- extractArguments
+  ts <- genTaskSet maxTaskUtil taskSetUtil
+  -- let ts = map (\((id, c, t), comm) -> (Task id (t * 1000000000) (t * 1000000000) (c * 1000000000) comm))
+  --       $ zip avaTs avaCs
+  let cs = [Core idee 1.0 | idee <- [1..nocSize*nocSize]]
+  -- cs <- genCoreSet (nocSize*nocSize) (0.2, 1.8)
+  let coreMapping = M.fromList $ zip [1..nocSize*nocSize] [Location r c | r <- [1..nocSize], c <- [1..nocSize]]
+  let d = Domain cs ts p
+  putStrLn $ show . sum . map cSpeed $ cs
+  putStrLn . show $ length ts
+
+  let met pm tm = let missing = fromIntegral $ missingDeadlines p (Application cs ts (M.fromList tm) coreMapping (M.fromList pm)) 1.0 in
+        (-) 100.0 $ (fromIntegral missing) / (fromIntegral (length ts)) * 100.0
+  let bdf pm tm = let bFreq = bdf2 p (Application cs ts (M.fromList tm) coreMapping (M.fromList pm)) in
+        case bFreq of
+          Nothing -> 1000.0
+          Just f -> f
+  let (mapping, stats) = runCCGA g ep d bdf met
   writeFile ("data/ccga_" ++ suffix ++ ".csv") $ statsToCsv stats
 
 avaTs = [ (1, 0.005, 0.5)
