@@ -197,9 +197,12 @@ evolve ep dom fnf hof@(hofTPm, hofCPm, hofM, hofFit) reps@(tpReps, cpReps, mReps
   newGenTPs <- mapM (mutate mtPb swapMutate) offspringTPs
   newGenCPs <- mapM (mutate mtPb swapMutate) offspringCPs
   newGenMs <- mapM (mutate mtPb (flipMutate (1, length cs))) offspringMs
-  mFits <- mapM (evalMappingFitness fnf tpReps cpReps) newGenMs
-  tpFits <- mapM (evalTaskPriorityFitness fnf cpReps mReps) newGenTPs
-  cpFits <- mapM (evalCommPriorityFitness fnf tpReps mReps) newGenCPs
+  mFitsM <- (mapM (evalMappingFitness fnf tpReps cpReps) newGenMs) :: m [(TPMap, CPMap, TMap, Fitness)]
+  let mFits = mFitsM `using` parList rdeepseq
+  tpFitsM <- mapM (evalTaskPriorityFitness fnf cpReps mReps) newGenTPs :: m [(TPMap, CPMap, TMap, Fitness)]
+  let tpFits = tpFitsM `using` parList rdeepseq
+  cpFitsM <- mapM (evalCommPriorityFitness fnf tpReps mReps) newGenCPs :: m [(TPMap, CPMap, TMap, Fitness)]
+  let cpFits = cpFitsM `using` parList rdeepseq
   let curBest@(curTPm, curCPm, curM, curFit) = head . sortBy (comparing fourth) $ mFits ++ tpFits ++ cpFits
   let hof' = if curFit < hofFit then (curTPm, curCPm, curM, curFit) else hof
   return $ (map (\(x, _, _, f) -> (x, f)) tpFits
