@@ -74,6 +74,15 @@ genTaskSet :: (MonadRandom m) => Float -> Float -> m [Task]
 genTaskSet tmaxTaskUtil targetTotalUtil  =
   genTaskParams tmaxTaskUtil targetTotalUtil >>= assignComms
 
+genCoreSet :: (MonadRandom m) => Int -> (Float, Float) -> m [Core]
+genCoreSet rem range@(lower, upper)
+  | rem == 0 = return []
+  | otherwise = do
+      speed <- uniformFloatRange lower upper
+      let rc = Core rem speed
+      rcs <- genCoreSet (pred rem) range
+      return (rc:rcs)
+
 type Arguments = (Int, Float, Float)
 
 extractArguments :: IO Arguments
@@ -86,9 +95,11 @@ extractArguments = do
 
 runs :: Int -> [Task] -> String -> IO ()
 runs nocSize ts dataset = do
-  let cs = [Core idee 1.0 | idee <- [1..nocSize*nocSize]]
+  -- let cs = [Core idee 1.0 | idee <- [1..nocSize*nocSize]]
+  cs <- genCoreSet (nocSize*nocSize) (0.6, 1.4)
   let coreMapping = M.fromList $ zip [1..nocSize*nocSize] [Location r c | r <- [1..nocSize], c <- [1..nocSize]]
   let d = Domain cs ts p
+  putStrLn $ show . sum . map cSpeed $ cs
   putStrLn . show $ length ts
 
   let met d pm tm = let missing = fromIntegral $ missingDeadlines p (Application cs ts (M.fromList tm) coreMapping (M.fromList pm)) sf in
@@ -98,8 +109,8 @@ runs nocSize ts dataset = do
           Nothing -> 1000.0
           Just f -> f
 
-  mapM (\i -> gaRun d ep (bdf d) (met d) (suffix i)) [1..20]
-  mapM (\i -> ccgaRun d cep (bdf d) (met d) (suffix i)) [1..20]
+  -- mapM (\i -> gaRun d ep (bdf d) (met d) (suffix i)) [1..10]
+  mapM (\i -> ccgaRun d cep (bdf d) (met d) (suffix i)) [1..10]
   return ()
     where
         ep = EvolutionParameters 100 200 2 0.7 0.01
@@ -116,7 +127,7 @@ main = do
   -- ts <- genTaskSet maxTaskUtil taskSetUtil
   let ts = map (\((id, c, t), comm) -> (Task id (t * 1000000000) (t * 1000000000) (c * 1000000000) comm))
         $ zip avaTs avaCs
-  mapM (\i -> runs i ts "ava") [3, 4, 5]
+  mapM (\i -> runs i ts "ava") [3]
   return ()
 
 statsToCsv :: [Stat] -> String
