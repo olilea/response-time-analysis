@@ -96,7 +96,7 @@ extractArguments = do
 runs :: Int -> String -> IO ()
 runs nocSize dataset = do
 
-  mapM (\i -> gaRun p nocSize ep (suffix i)) [1..10]
+  -- mapM (\i -> gaRun p nocSize ep (suffix i)) [1..10]
   mapM (\i -> ccgaRun p nocSize cep (suffix i)) [1..10]
   return ()
     where
