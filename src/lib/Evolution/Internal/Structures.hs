@@ -6,7 +6,8 @@ module Evolution.Internal.Structures
   , Domain(..)
   , Fitness
   , PMap
-  , TMap)
+  , TMap
+  , CMap)
   where
 
 import Analysis
@@ -43,3 +44,5 @@ type PMap = [(TaskId, TaskPriority)]
 
 -- Maps task ID to core ID
 type TMap = [(TaskId, CoreId)]
+
+type CMap = [(CoreId, Location)]

@@ -1,7 +1,11 @@
+{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
+
 module Analysis.Internal.Structures
 where
 
+import GHC.Generics (Generic)
 import qualified Data.Map as M
+import Control.DeepSeq
 
 type Id = Int
 
@@ -25,7 +29,7 @@ type LinkDelay = Float
 type RoutingDelay = Float
 
 data Location = Location Int Int
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic, NFData)
 -- Source and destination
 data Link = Link Location Location
     deriving (Eq, Show)

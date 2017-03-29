@@ -1,6 +1,9 @@
 
 module Evolution.Internal.Utils
   ( third
+  , fst3
+  , snd3
+  , fourth
   , pick
   , tournament
   , flipMutate
@@ -9,10 +12,14 @@ module Evolution.Internal.Utils
   , singlePointCrossover
   , uniformCrossover
   , mappingCrossover
+  , coreMappingCrossover
   , priorityCrossover
   , genTaskMapping
-  ,genPriorityMapping
+  , genPriorityMapping
+  , genCoreMapping
   ) where
+
+import Analysis
 
 import Evolution.Internal.Structures
 
@@ -27,6 +34,15 @@ import System.Random.Shuffle
 
 third :: (a, b, c) -> c
 third (_, _, x) = x
+
+fst3 :: (a, b, c) -> a
+fst3 (x, _, _) = x
+
+snd3 :: (a, b, c) -> b
+snd3 (_, x, _) = x
+
+fourth :: (a, b, c, d) -> d
+fourth (_, _, _, x) = x
 
 pick :: (MonadRandom m) => [a] -> m a
 pick as = (!!) as <$> getRandomR (0, (length as) - 1)
@@ -109,6 +125,18 @@ mappingCrossover l r = do
   crossedCs <- uniformCrossover (map snd sortL) (map snd sortR)
   return . zip (map fst sortL) $ crossedCs
 
+coreMappingCrossover :: (MonadRandom m)
+                     => CMap
+                     -> CMap
+                     -> m CMap
+coreMappingCrossover l r = do
+  let nocSize = floor . sqrt $ fromIntegral (length l)
+  let ml = map (\(cId, loc) -> (cId, locationToInt nocSize loc)) l
+  let mr = map (\(cId, loc) -> (cId, locationToInt nocSize loc)) r
+  crossed <- priorityCrossover ml mr
+  return $ map (\(cId, lId) -> (cId, intToLocation nocSize lId)) crossed
+
+
 -- It must be the case that if two tasks share a priority then
 -- there is a priority that has not been assigned to.
 -- In this case, randomly pick one of the tasks to retain the given
@@ -119,9 +147,9 @@ mappingCrossover l r = do
 --
 -- TODO: Need to add the random selection between the two
 priorityCrossover :: (MonadRandom m)
-                  => PMap
-                  -> PMap
-                  -> m PMap
+                  => [(Int, Int)]
+                  -> [(Int, Int)]
+                  -> m [(Int, Int)]
 priorityCrossover l r = do
   let sortL = sortBy (comparing fst) l
   let sortR = sortBy (comparing fst) r
@@ -147,6 +175,16 @@ fixPriorities ps = case ps of
     else do
       (return b):(fixPriorities ((at, ap + 1):rem))
 
+locationToInt :: Int -> Location -> Int
+locationToInt nocSize (Location x y) = (nocSize * (pred x)) + y
+
+intToLocation :: Int -> Int -> Location
+intToLocation nocSize i = (Location x y)
+  where
+    x = ceiling ((fromIntegral i) / (fromIntegral nocSize))
+    modded = i `mod` nocSize
+    y = if modded == 0 then nocSize else modded
+
 -- Initial population generation
 
 genTaskMapping :: (MonadRandom m) => Int -> Int -> m TMap
@@ -159,3 +197,12 @@ genPriorityMapping ts = do
   priorities <- shuffleM [1..ts]
   let tasks = [1..ts]
   return $ zip tasks priorities
+
+
+-- Assumes the NoC is square
+genCoreMapping :: (MonadRandom m) => Int -> m CMap
+genCoreMapping cs = do
+  locs <- shuffleM [Location r c | r <- [1..nocSize], c <- [1..nocSize]]
+  return $ zip [1..cs] locs
+  where
+    nocSize = floor . sqrt $ fromIntegral cs
