@@ -134,7 +134,7 @@ gaRun p nocSize ep suffix = do
   let ts = map (\((id, c, t), comm) -> (Task id (t * 1000000000) (t * 1000000000) (c * 1000000000) comm))
         $ zip avaTs avaCs
   -- let cs = [Core idee 1.0 | idee <- [1..nocSize*nocSize]]
-  cs <- reverse <$> genCoreSet (nocSize*nocSize) (0.2, 1.8)
+  cs <- reverse <$> genCoreSet (nocSize*nocSize) (0.4, 1.8)
   let coreMapping = M.fromList $ zip [1..nocSize*nocSize] [Location r c | r <- [1..nocSize], c <- [1..nocSize]]
   let d = Domain cs ts p
   putStrLn $ show . sum . map cSpeed $ cs
